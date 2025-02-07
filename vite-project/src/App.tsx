@@ -1,4 +1,4 @@
-import {TimeLine} from './TimeLine.tsx'
+import { TimeLine } from './time_line_page/TimeLine.tsx'
 import {WhatEver} from './WhatEver.tsx'
 import './App.css'
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
