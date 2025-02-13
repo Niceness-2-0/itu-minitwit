@@ -515,8 +515,8 @@ func main() {
 	r.HandleFunc("/logout", logoutHandler).Methods("GET")
 	r.HandleFunc("/", timelineHandler).Methods("GET")
 	r.HandleFunc("/{username}", userTimelineHandler).Methods("GET")
-	r.HandleFunc("/{username}/follow", followUserHandler).Methods("POST")
-	r.HandleFunc("/{username}/unfollow", unfollowUserHandler).Methods("POST")
+	r.HandleFunc("/{username}/follow", followUserHandler).Methods("GET")
+	r.HandleFunc("/{username}/unfollow", unfollowUserHandler).Methods("GET")
 	r.HandleFunc("/add_message", addMessageHandler).Methods("POST")
 
 	log.Println("Server started on :5000")
