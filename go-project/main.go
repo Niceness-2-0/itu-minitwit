@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -15,11 +17,11 @@ const PER_PAGE = 30 // Number of messages per page
 
 // Message represents a single message in the public timeline
 type Message struct {
-	ID        int    `json:"id"`
-	AuthorID  int    `json:"author_id"`
-	Username  string `json:"username"`
-	Text      string `json:"text"`
-	PubDate   int64  `json:"pub_date"`
+	ID       int    `json:"id"`
+	AuthorID int    `json:"author_id"`
+	Username string `json:"username"`
+	Text     string `json:"text"`
+	PubDate  int64  `json:"pub_date"`
 }
 
 // connectDB initializes and returns a database connection
@@ -76,9 +78,20 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables.")
+	}
+
+	// Get the PORT environment variable
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "5000" // Default if PORT is not set
+	}
+
 	r := mux.NewRouter()
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
 
-	log.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Println("Server started on port:", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }
