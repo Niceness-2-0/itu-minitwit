@@ -1,7 +1,7 @@
 package main
 
 import (
-	
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -54,14 +54,20 @@ func performRequest(req *http.Request, handlerFunc http.HandlerFunc) *httptest.R
 
 // Helper function to register a user
 func registerUser(username, password, email string) *httptest.ResponseRecorder {
-	form := url.Values{}
-	form.Add("username", username)
-	form.Add("password", password)
-	form.Add("password2", password)
-	form.Add("email", email)
+	// Create JSON payload
+	payload := map[string]string{
+		"username":  username,
+		"password":  password,
+		"password2": password,
+		"email":     email,
+	}
+	jsonData, _ := json.Marshal(payload)
 
-	req, _ := http.NewRequest("POST", "/register", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Create request with JSON body
+	req, _ := http.NewRequest("POST", "/register", bytes.NewBuffer(jsonData))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Perform request and return response
 	return performRequest(req, registerHandler)
 }
 
@@ -84,9 +90,9 @@ func TestRegisterUser(t *testing.T) {
 	defer db.Close()
 
 	// Test successful registration
-	resp := registerUser("user1", "password123", "user1@example.com")
+	resp := registerUser("user123", "password123", "user1@example.com")
 	if resp.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.Code)
+		t.Errorf("Expected status 200, got %d. Response: %s", resp.Code, resp.Body.String())
 	}
 
 	// Test duplicate username
