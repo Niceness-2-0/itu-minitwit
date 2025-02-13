@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -179,7 +180,7 @@ func sendErrorResponse(w http.ResponseWriter, errorMessage string) {
 // loginHandler handles login requests
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		// TODO: Render the login form here (e.g., serve an HTML page)
+		// Render the login form here (e.g., serve an HTML page)
 		http.ServeFile(w, r, "templates/login.html")
 		return
 	}
@@ -213,6 +214,22 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			sendErrorResponse(w, "Invalid password")
 			return
 		} else {
+			// Start a session and store the user ID in the session
+			session, err := store.Get(r, "session-name")
+			if err != nil {
+				sendErrorResponse(w, "Failed to get session")
+				return
+			}
+
+			// Store user_id in the session
+			session.Values["user_id"] = user.ID
+			err = session.Save(r, w)
+			if err != nil {
+				sendErrorResponse(w, "Failed to save session")
+				return
+			}
+
+			// Respond with a success message
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
 			return
@@ -450,6 +467,7 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "session-name")
 	userID, ok := session.Values["user_id"].(int)
+	fmt.Print(session.Values["user_id"])
 	if !ok || userID == 0 {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
