@@ -20,6 +20,8 @@ import (
 const DATABASE = "./minitwit.db"
 const PER_PAGE = 30 // Number of messages per page
 
+var db *sql.DB
+
 // Message represents a single message in the public timeline
 type Message struct {
 	ID       int    `json:"id"`
@@ -37,8 +39,11 @@ type User struct {
 	PwHash   string `json:"pw_hash"`
 }
 
+var store = sessions.NewCookieStore([]byte("something-very-secret"))
+
 // connectDB initializes and returns a database connection
 func connectDB() (*sql.DB, error) {
+	// TODO Use db as a global variable.
 	db, err := sql.Open("sqlite3", DATABASE)
 	if err != nil {
 		return nil, err
@@ -229,6 +234,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			fmt.Println("User logged in", session.Values["user_id"])
 			// Respond with a success message
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
@@ -308,8 +314,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Render html
 }
 
-var store = sessions.NewCookieStore([]byte("something-very-secret"))
-
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Get the session
 	session, err := store.Get(r, "session-name")
@@ -328,6 +332,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("User logged out", session.Values["user_id"])
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "You were logged out"})
 	// TODO Redirecting to timeline
@@ -466,27 +471,20 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 
 func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "session-name")
+	fmt.Printf("Raw session values: %+v\n", session.Values)
+
 	userID, ok := session.Values["user_id"].(int)
-	fmt.Print(session.Values["user_id"])
+	fmt.Printf("user_id in session: %v, Type: %T\n", session.Values["user_id"], session.Values["user_id"])
 	if !ok || userID == 0 {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
 	text := r.FormValue("text")
-	if text == "" {
-		http.Error(w, "Message text is required", http.StatusBadRequest)
-		return
-	}
 
 	db, err := connectDB()
 	if err != nil {
-		http.Error(w, "Database connection error", http.StatusInternalServerError)
+		// TODO: This if condition can be generalized inside connectDB function
+		sendErrorResponse(w, "Database connection error")
 		return
 	}
 	defer db.Close()
@@ -503,6 +501,14 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	r := mux.NewRouter()
+	store.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400, // 1 day
+		HttpOnly: true,
+		Secure:   false, // Must be true in production with HTTPS
+		SameSite: http.SameSiteLaxMode,
+	}
+
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
