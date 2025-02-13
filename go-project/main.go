@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 
 	"time"
@@ -46,6 +47,25 @@ func connectDB() (*sql.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func initDB() error {
+	// Read the schema file using os.ReadFile
+	schema, err := os.ReadFile("schema.sql")
+	if err != nil {
+		return err // Return an error if the file can't be read
+	}
+
+	// Execute the schema script
+	db, err := connectDB()
+	if err == nil {
+		_, err = db.Exec(string(schema))
+	}
+	if err != nil {
+		return err // Return an error if the execution fails
+	}
+
+	return nil
 }
 
 func getUserID(db *sql.DB, username string) (int, error) {
@@ -449,6 +469,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	initDB()
 	r := mux.NewRouter()
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST")
