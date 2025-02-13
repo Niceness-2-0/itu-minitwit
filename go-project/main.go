@@ -174,44 +174,50 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 // loginHandler handles login requests
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		http.Error(w, "GET method not allowed", http.StatusMethodNotAllowed)
+		// TODO: Render the login form here (e.g., serve an HTML page)
+		http.ServeFile(w, r, "templates/login.html")
 		return
 	}
+	if r.Method == http.MethodPost {
+		var errorMessage string
 
-	var creds struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		// Validate form data
+		if username == "" {
+			errorMessage = "You have to enter a username"
+		} else if password == "" {
+			errorMessage = "You have to enter a password"
+		}
+		if errorMessage != "" {
+			// TODO: Error handling is not the best. Fix it
+			// If there was an error, send back a response with the error
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+			return
+		}
+		db, err := connectDB()
+		if err != nil {
+			errorMessage = "Database connection error"
+			return
+		}
+		defer db.Close()
+
+		var user User
+		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
+		if err != nil {
+			errorMessage = "Invalid username"
+			return
+		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
+			http.Error(w, "Invalid password", http.StatusUnauthorized)
+			return
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
+			return
+		}
 	}
-
-	// Parse form data
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-	creds.Username = r.FormValue("username")
-	creds.Password = r.FormValue("password")
-
-	db, err := connectDB()
-	if err != nil {
-		http.Error(w, "Database connection error", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
-
-	var user User
-	err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", creds.Username).Scan(&user.ID, &user.Username, &user.PwHash)
-	if err != nil {
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
 }
 
 // registerHandler handles registration requests
@@ -471,7 +477,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
-	r.HandleFunc("/login", loginHandler).Methods("POST")
+	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
 	r.HandleFunc("/logout", logoutHandler).Methods("GET")
 	r.HandleFunc("/", timelineHandler).Methods("GET")
