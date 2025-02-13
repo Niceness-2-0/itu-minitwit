@@ -172,47 +172,53 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+func sendErrorResponse(w http.ResponseWriter, errorMessage string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+}
+
 // loginHandler handles login requests
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		http.Error(w, "GET method not allowed", http.StatusMethodNotAllowed)
+		// TODO: Render the login form here (e.g., serve an HTML page)
+		http.ServeFile(w, r, "templates/login.html")
 		return
 	}
 
-	var creds struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
+	if r.Method == http.MethodPost {
+		username := r.FormValue("username")
+		password := r.FormValue("password")
 
-	// Parse form data
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-	creds.Username = r.FormValue("username")
-	creds.Password = r.FormValue("password")
+		// Validate form data
+		if username == "" {
+			sendErrorResponse(w, "You have to enter a username")
+			return
+		} else if password == "" {
+			sendErrorResponse(w, "You have to enter a password")
+			return
+		}
 
-	db, err := connectDB()
-	if err != nil {
-		http.Error(w, "Database connection error", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
+		db, err := connectDB()
+		if err != nil {
+			sendErrorResponse(w, "Database connection error")
+			return
+		}
+		defer db.Close()
 
-	var user User
-	err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", creds.Username).Scan(&user.ID, &user.Username, &user.PwHash)
-	if err != nil {
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
-		return
+		var user User
+		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
+		if err != nil {
+			sendErrorResponse(w, "Invalid username")
+			return
+		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
+			sendErrorResponse(w, "Invalid password")
+			return
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
+			return
+		}
 	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
 }
 
 // registerHandler handles registration requests
@@ -224,8 +230,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
-		var errorMessage string
-
 		username := r.FormValue("username")
 		email := r.FormValue("email")
 		password := r.FormValue("password")
@@ -233,25 +237,22 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Validate form data
 		if username == "" {
-			errorMessage = "You have to enter a username"
+			sendErrorResponse(w, "You have to enter a username")
+			return
 		} else if email == "" || !regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`).MatchString(email) {
-			errorMessage = "You have to enter a valid email address"
+			sendErrorResponse(w, "You have to enter a valid email address")
+			return
 		} else if password == "" {
-			errorMessage = "You have to enter a password"
+			sendErrorResponse(w, "You have to enter a password")
+			return
 		} else if password != password2 {
-			errorMessage = "The two passwords do not match"
-		}
-
-		if errorMessage != "" {
-			// If there was an error, send back a response with the error
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+			sendErrorResponse(w, "The two passwords do not match")
 			return
 		}
 
 		db, err := connectDB()
 		if err != nil {
-			http.Error(w, "Database connection error", http.StatusInternalServerError)
+			sendErrorResponse(w, "Database connection error")
 			return
 		}
 		defer db.Close()
@@ -259,7 +260,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Check if the username already exists
 		userID, err := getUserID(db, username)
 		if err != nil {
-			http.Error(w, "Database query error", http.StatusInternalServerError)
+			sendErrorResponse(w, "Database query error")
 			return
 		}
 		if userID != -1 {
@@ -271,14 +272,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Hash the password
 		pwHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			http.Error(w, "Error hashing password", http.StatusInternalServerError)
+			sendErrorResponse(w, "Error hashing password")
 			return
 		}
 
 		// Insert user into database
 		_, err = db.Exec("INSERT INTO user (username, email, pw_hash) VALUES (?, ?, ?)", username, email, pwHash)
 		if err != nil {
-			http.Error(w, "Error inserting user into database", http.StatusInternalServerError)
+			sendErrorResponse(w, "Error inserting user into database")
 			return
 		}
 
@@ -294,12 +295,26 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 var store = sessions.NewCookieStore([]byte("something-very-secret"))
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "session-name")
-	session.Values["user_id"] = nil
-	session.Save(r, w)
+	// Get the session
+	session, err := store.Get(r, "session-name")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove the 'user_id' from the session
+	delete(session.Values, "user_id")
+
+	// Save the session after modification
+	err = session.Save(r, w)
+	if err != nil {
+		http.Error(w, "Unable to save session", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "You were logged out"})
+	// TODO Redirecting to timeline
 }
 
 func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
@@ -483,7 +498,7 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
-	r.HandleFunc("/login", loginHandler).Methods("POST")
+	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
 	r.HandleFunc("/logout", logoutHandler).Methods("GET")
 	r.HandleFunc("/", timelineHandler).Methods("GET")
