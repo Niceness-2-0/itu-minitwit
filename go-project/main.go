@@ -469,7 +469,6 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	initDB()
 	r := mux.NewRouter()
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST")
