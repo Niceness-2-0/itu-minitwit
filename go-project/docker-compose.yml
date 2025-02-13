@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  go-api:
+    build:
+      context: .
+    volumes:
+      - ./minitwit.db:/go-project/minitwit.db  # Mount SQLite database file into the container
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE=/go-project/minitwit.db
+    container_name: go-api
