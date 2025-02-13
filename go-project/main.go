@@ -140,6 +140,8 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 // publicTimelineHandler handles requests to the /public endpoint
 func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := connectDB()
+	fmt.Println("trying to connect database")
+	fmt.Println(err)
 	if err != nil {
 		http.Error(w, "Database connection error", http.StatusInternalServerError)
 		return
