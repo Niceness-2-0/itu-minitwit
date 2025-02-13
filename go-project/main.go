@@ -171,6 +171,11 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+func sendErrorResponse(w http.ResponseWriter, errorMessage string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+}
+
 // loginHandler handles login requests
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
@@ -178,28 +183,23 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "templates/login.html")
 		return
 	}
-	if r.Method == http.MethodPost {
-		var errorMessage string
 
+	if r.Method == http.MethodPost {
 		username := r.FormValue("username")
 		password := r.FormValue("password")
 
 		// Validate form data
 		if username == "" {
-			errorMessage = "You have to enter a username"
+			sendErrorResponse(w, "You have to enter a username")
+			return
 		} else if password == "" {
-			errorMessage = "You have to enter a password"
-		}
-		if errorMessage != "" {
-			// TODO: Error handling is not the best. Fix it
-			// If there was an error, send back a response with the error
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+			sendErrorResponse(w, "You have to enter a password")
 			return
 		}
+
 		db, err := connectDB()
 		if err != nil {
-			errorMessage = "Database connection error"
+			sendErrorResponse(w, "Database connection error")
 			return
 		}
 		defer db.Close()
@@ -207,10 +207,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		var user User
 		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
 		if err != nil {
-			errorMessage = "Invalid username"
+			sendErrorResponse(w, "Invalid username")
 			return
 		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
-			http.Error(w, "Invalid password", http.StatusUnauthorized)
+			sendErrorResponse(w, "Invalid password")
 			return
 		} else {
 			w.Header().Set("Content-Type", "application/json")
@@ -229,8 +229,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
-		var errorMessage string
-
 		username := r.FormValue("username")
 		email := r.FormValue("email")
 		password := r.FormValue("password")
@@ -238,25 +236,22 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Validate form data
 		if username == "" {
-			errorMessage = "You have to enter a username"
+			sendErrorResponse(w, "You have to enter a username")
+			return
 		} else if email == "" || !regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`).MatchString(email) {
-			errorMessage = "You have to enter a valid email address"
+			sendErrorResponse(w, "You have to enter a valid email address")
+			return
 		} else if password == "" {
-			errorMessage = "You have to enter a password"
+			sendErrorResponse(w, "You have to enter a password")
+			return
 		} else if password != password2 {
-			errorMessage = "The two passwords do not match"
-		}
-
-		if errorMessage != "" {
-			// If there was an error, send back a response with the error
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+			sendErrorResponse(w, "The two passwords do not match")
 			return
 		}
 
 		db, err := connectDB()
 		if err != nil {
-			http.Error(w, "Database connection error", http.StatusInternalServerError)
+			sendErrorResponse(w, "Database connection error")
 			return
 		}
 		defer db.Close()
@@ -264,7 +259,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Check if the username already exists
 		userID, err := getUserID(db, username)
 		if err != nil {
-			http.Error(w, "Database query error", http.StatusInternalServerError)
+			sendErrorResponse(w, "Database query error")
 			return
 		}
 		if userID != -1 {
@@ -276,14 +271,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Hash the password
 		pwHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			http.Error(w, "Error hashing password", http.StatusInternalServerError)
+			sendErrorResponse(w, "Error hashing password")
 			return
 		}
 
 		// Insert user into database
 		_, err = db.Exec("INSERT INTO user (username, email, pw_hash) VALUES (?, ?, ?)", username, email, pwHash)
 		if err != nil {
-			http.Error(w, "Error inserting user into database", http.StatusInternalServerError)
+			sendErrorResponse(w, "Error inserting user into database")
 			return
 		}
 
@@ -299,12 +294,26 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 var store = sessions.NewCookieStore([]byte("something-very-secret"))
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "session-name")
-	session.Values["user_id"] = nil
-	session.Save(r, w)
+	// Get the session
+	session, err := store.Get(r, "session-name")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove the 'user_id' from the session
+	delete(session.Values, "user_id")
+
+	// Save the session after modification
+	err = session.Save(r, w)
+	if err != nil {
+		http.Error(w, "Unable to save session", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "You were logged out"})
+	// TODO Redirecting to timeline
 }
 
 func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
