@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -40,6 +41,7 @@ type User struct {
 }
 
 var store = sessions.NewCookieStore([]byte("something-very-secret"))
+var tmpl = template.Must(template.New("templates/layout.html").ParseFiles("templates/layout.html", "templates/timeline.html"))
 
 // connectDB initializes and returns a database connection
 func connectDB() (*sql.DB, error) {
@@ -123,7 +125,6 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	var messages []Message
-
 	for rows.Next() {
 		var msg Message
 		if err := rows.Scan(&msg.ID, &msg.AuthorID, &msg.Username, &msg.Text, &msg.PubDate); err != nil {
@@ -133,15 +134,25 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, msg)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(messages)
+	// Define template data
+	data := map[string]interface{}{
+		"Title":    "My Timeline",
+		"Messages": messages,
+		"User":     userID,
+		"Username": session.Values["username"],
+		"Flashes":  []string{"Your message was recorded"},
+	}
+
+	// Render the template
+	w.Header().Set("Content-Type", "text/html")
+	if err := tmpl.ExecuteTemplate(w, "timeline.html", data); err != nil {
+		http.Error(w, "Template rendering error", http.StatusInternalServerError)
+	}
 }
 
 // publicTimelineHandler handles requests to the /public endpoint
 func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := connectDB()
-	fmt.Println("trying to connect database")
-	fmt.Println(err)
 	if err != nil {
 		http.Error(w, "Database connection error", http.StatusInternalServerError)
 		return
@@ -174,9 +185,17 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, msg)
 	}
 
-	// Convert messages to JSON and send response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(messages)
+	// Define template data
+	data := map[string]interface{}{
+		"Title":    "Public Timeline",
+		"Messages": messages,
+	}
+
+	// Render the HTML template
+	w.Header().Set("Content-Type", "text/html")
+	if err := tmpl.ExecuteTemplate(w, "timeline.html", data); err != nil {
+		http.Error(w, "Template rendering error", http.StatusInternalServerError)
+	}
 }
 
 func sendErrorResponse(w http.ResponseWriter, errorMessage string) {
@@ -344,6 +363,7 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	username := vars["username"]
 
+	// Connect to the database
 	db, err := connectDB()
 	if err != nil {
 		http.Error(w, "Database connection error", http.StatusInternalServerError)
@@ -351,6 +371,7 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
+	// Fetch profile user data
 	var profileUser User
 	err = db.QueryRow("SELECT user_id, username FROM user WHERE username = ?", username).Scan(&profileUser.ID, &profileUser.Username)
 	if err != nil {
@@ -358,6 +379,7 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if the current user is following the profile user
 	session, _ := store.Get(r, "session-name")
 	userID, ok := session.Values["user_id"].(int)
 	followed := false
@@ -369,21 +391,22 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fetch messages (tweets)
 	rows, err := db.Query(`
-        SELECT message.message_id, message.author_id, user.username, message.text, message.pub_date
-        FROM message
-        JOIN user ON message.author_id = user.user_id
-        WHERE user.user_id = ?
-        ORDER BY message.pub_date DESC
-        LIMIT ?`, profileUser.ID, PER_PAGE)
+		SELECT message.message_id, message.author_id, user.username, message.text, message.pub_date
+		FROM message
+		JOIN user ON message.author_id = user.user_id
+		WHERE user.user_id = ?
+		ORDER BY message.pub_date DESC
+		LIMIT ?`, profileUser.ID, PER_PAGE)
 	if err != nil {
 		http.Error(w, "Database query error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
 
+	// Store messages in a slice
 	var messages []Message
-
 	for rows.Next() {
 		var msg Message
 		if err := rows.Scan(&msg.ID, &msg.AuthorID, &msg.Username, &msg.Text, &msg.PubDate); err != nil {
@@ -432,8 +455,14 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "You are now following " + username})
+	// Set flash message
+	flashMessage := fmt.Sprintf("You are now following \"%s\"", username)
+	fmt.Print(flashMessage)
+	session.Values["flash"] = flashMessage
+	session.Save(r, w)
+
+	// Redirect to user timeline
+	http.Redirect(w, r, "/"+username, http.StatusSeeOther)
 }
 
 func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -472,33 +501,48 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func addMessageHandler(w http.ResponseWriter, r *http.Request) {
+	// Get session
 	session, _ := store.Get(r, "session-name")
-	fmt.Printf("Raw session values: %+v\n", session.Values)
-
 	userID, ok := session.Values["user_id"].(int)
+
+	// Debugging session values
+	fmt.Printf("Raw session values: %+v\n", session.Values)
 	fmt.Printf("user_id in session: %v, Type: %T\n", session.Values["user_id"], session.Values["user_id"])
+
+	// Check if the user is logged in
 	if !ok || userID == 0 {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	text := r.FormValue("text")
 
+	// Get message text from form
+	text := r.FormValue("text")
+	if text == "" {
+		http.Redirect(w, r, "/timeline", http.StatusFound) // Redirect even if empty (like Flask)
+		return
+	}
+
+	// Connect to database
 	db, err := connectDB()
 	if err != nil {
-		// TODO: This if condition can be generalized inside connectDB function
-		sendErrorResponse(w, "Database connection error")
+		http.Error(w, "Database connection error", http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
+	// Insert message into the database
 	_, err = db.Exec("INSERT INTO message (author_id, text, pub_date, flagged) VALUES (?, ?, ?, 0)", userID, text, time.Now().Unix())
 	if err != nil {
 		http.Error(w, "Error inserting message into database", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Your message was recorded"})
+	// Store flash message in session
+	session.Values["flash"] = "Your message was recorded"
+	session.Save(r, w)
+
+	// Redirect to timeline
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func main() {
