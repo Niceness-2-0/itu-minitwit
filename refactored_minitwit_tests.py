@@ -88,11 +88,11 @@ def test_login_logout():
 def test_message_recording():
     """Check if adding messages works"""
     _, http_session = register_and_login('foo', 'default')
-    add_message(http_session, '<test message 2>')
     add_message(http_session, 'test message 1')
+    add_message(http_session, '<test message 2>')
     r = requests.get(f'{BASE_URL}/')
-    assert '\\u003ctest message 2\\u003e' in r.text
     assert 'test message 1' in r.text
+    assert '&lt;test message 2&gt;' in r.text
 
 def test_timelines():
     """Make sure that timelines work"""
@@ -112,7 +112,7 @@ def test_timelines():
 
     # now let's follow foo
     r = http_session.get(f'{BASE_URL}/foo/follow', allow_redirects=True)
-    assert 'You are now following foo' in r.text
+    assert 'You are now following &#34;foo&#34;' in r.text
 
     # we should now see foo's message
     r = http_session.get(f'{BASE_URL}/')
@@ -129,7 +129,7 @@ def test_timelines():
 
     # now unfollow and check if that worked
     r = http_session.get(f'{BASE_URL}/foo/unfollow', allow_redirects=True)
-    assert 'You are no longer following foo' in r.text
+    assert 'You are no longer following &#34;foo&#34;' in r.text
     r = http_session.get(f'{BASE_URL}/')
     assert 'the message by foo' not in r.text
     assert 'the message by bar' in r.text
