@@ -208,16 +208,17 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		var user User
 		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
 		if err != nil {
-			sendErrorResponse(w, "Invalid username")
+			http.Error(w, "Invalid username", http.StatusUnauthorized)
 			return
 		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
-			sendErrorResponse(w, "Invalid password")
+			http.Error(w, "Invalid password", http.StatusUnauthorized)
 			return
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
 			return
 		}
+
 	}
 }
 
