@@ -89,6 +89,26 @@ func getDBFromContext(r *http.Request) (*sql.DB, error) {
 	return db, nil
 }
 
+// getLatest reads the latest processed command ID from a file and returns it as JSON
+func getLatest(w http.ResponseWriter, r *http.Request) {
+	data, err := os.ReadFile("latest_processed_sim_action_id.txt")
+	if err != nil {
+		// If the file doesn't exist or there's an error reading, default to -1
+		fmt.Println("Error reading latest ID file:", err)
+		data = []byte("-1")
+	}
+
+	latestProcessedID, err := strconv.Atoi(string(data))
+	if err != nil {
+		latestProcessedID = -1
+	}
+
+	response := map[string]int{"latest": latestProcessedID}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // updateLatest writes the latest processed command ID to a file
 func updateLatest(r *http.Request) {
 	latest := r.URL.Query().Get("latest")
@@ -96,6 +116,7 @@ func updateLatest(r *http.Request) {
 		return
 	}
 
+	fmt.Println("Updating latest ID to:", latest)
 	parsedCommandID, err := strconv.Atoi(latest)
 	if err != nil || parsedCommandID == -1 {
 		return
@@ -177,6 +198,7 @@ func main() {
 	r.Use(dbMiddleware) // Apply the middleware
 
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
+	r.HandleFunc("/latest", getLatest).Methods("GET")
 
 	http.Handle("/", r)
 	log.Println("Server running on port 5001")
