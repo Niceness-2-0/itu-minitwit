@@ -3,7 +3,7 @@ version: '3.8'
 services:
   go-api:
     build:
-      context: .
+      context: . #  Look for the Dockerfile in the current directory (.)
     volumes:
       - ./minitwit.db:/go-project/minitwit.db  # Mount SQLite database file into the container
     ports:
