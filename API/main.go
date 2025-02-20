@@ -51,7 +51,7 @@ func connectDB() (*sql.DB, error) {
 
 func initDB() error {
 	// Read the schema file using os.ReadFile
-	schema, err := os.ReadFile("schema.sql")
+	schema, err := os.ReadFile("../schema.sql")
 	if err != nil {
 		return err // Return an error if the file can't be read
 	}
@@ -281,6 +281,122 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// follow handles GET (retrieve followers) and POST (follow, unfollow a user)
+func follow(w http.ResponseWriter, r *http.Request) {
+	updateLatest(r)
+	vars := mux.Vars(r)
+	username := vars["username"]
+
+	if !notReqFromSimulator(w, r) {
+		return
+	}
+
+	db, _ := getDBFromContext(r)
+
+	// Get user ID
+	userID, err := getUserID(db, username)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if r.Method == http.MethodPost && r.URL.Query().Get("follow") != "" {
+		// Decode request body
+		var requestData struct {
+			FollowUsername string `json:"follow"`
+		}
+
+		// Get user ID
+		followsUserID, err := getUserID(db, requestData.FollowUsername)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "User not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Follow the user
+		query := `INSERT INTO follower (who_id, whom_id) VALUES (?, ?)`
+		_, err = db.Exec(query, userID, followsUserID)
+		if err != nil {
+			http.Error(w, "Database insert error", http.StatusInternalServerError)
+			return
+		}
+
+		// Send JSON response
+		w.WriteHeader(http.StatusNoContent)
+	} else if r.Method == http.MethodPost && r.URL.Query().Get("unfollow") != "" {
+		// Decode request body
+		var requestData struct {
+			UnFollowUsername string `json:"unfollow"`
+		}
+
+		// Get user ID
+		unfollowUserID, err := getUserID(db, requestData.UnFollowUsername)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "User not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Unfollow the user
+		query := `DELETE FROM follower WHERE who_id = ? AND whom_id = ?`
+		_, err = db.Exec(query, userID, unfollowUserID)
+		if err != nil {
+			http.Error(w, "Database insert error", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	} else if r.Method == http.MethodGet {
+		noFollowers := 100 // Default 100 followers
+		if noFollowersStr := r.URL.Query().Get("no"); noFollowersStr != "" {
+			if num, err := strconv.Atoi(noFollowersStr); err == nil {
+				noFollowers = num
+			}
+		}
+
+		// Query followers
+		query := `SELECT user.username FROM user
+					INNER JOIN follower ON follower.whom_id=user.user_id
+					WHERE follower.who_id=?
+					LIMIT ?`
+
+		rows, err := db.Query(query, userID, noFollowers)
+		if err != nil {
+			http.Error(w, "Database query error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		// Collect follower usernames
+		var followerNames []string
+		for rows.Next() {
+			var username string
+			if err := rows.Scan(&username); err != nil {
+				http.Error(w, "Error scanning result", http.StatusInternalServerError)
+				return
+			}
+			followerNames = append(followerNames, username)
+		}
+
+		// Prepare JSON response
+		response := map[string][]string{"follows": followerNames}
+		// Send JSON response
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
 // updateLatest writes the latest processed command ID to a file
 func updateLatest(r *http.Request) {
 	latest := r.URL.Query().Get("latest")
@@ -373,6 +489,7 @@ func main() {
 	r.HandleFunc("/latest", getLatest).Methods("GET")
 	r.HandleFunc("/msgs", getMessages).Methods("GET")
 	r.HandleFunc("/msgs/{username}", messagesPerUser).Methods("GET", "POST")
+	r.HandleFunc("/fllws/{username}", follow).Methods("GET", "POST")
 
 	http.Handle("/", r)
 	log.Println("Server running on port 5001")
