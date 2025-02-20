@@ -21,7 +21,7 @@ RUN chmod 666 /API/minitwit.db
 RUN go build -o main .
 
 # Expose the port the app runs on
-EXPOSE 5000
+EXPOSE 5001
 
 # Command to run the executable
 CMD ["./main"]
