@@ -46,6 +46,7 @@ Vagrant.configure("2") do |config|
     
     # Clone the repo if it doesn't exist
     if [ ! -d "/home/ubuntu/app" ]; then
+      # TODO Change branch to main
       git clone -b week3 https://github.com/Niceness-2-0/itu-minitwit.git /home/ubuntu/app
     fi
 
