@@ -74,7 +74,6 @@ func dbMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Open a new database connection
 		db, err := sql.Open("sqlite3", DATABASE)
-		fmt.Println("Opening database connection")
 		if err != nil {
 			fmt.Println(err.Error())
 			http.Error(w, "Database connection error", http.StatusInternalServerError)
@@ -116,7 +115,7 @@ func getLatest(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
-		fmt.Println("Error reading latest ID file:", err)
+		fmt.Errorf("Error reading latest ID file:", err)
 		data = []byte("-1")
 	}
 
@@ -255,6 +254,10 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		var requestData struct {
 			Content string `json:"content"`
 		}
+		if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+			http.Error(w, `{"status": 400, "error_msg": "Invalid JSON"}`, http.StatusBadRequest)
+			return
+		}
 
 		// Get user ID
 		userID, err := getUserID(db, username)
@@ -304,59 +307,61 @@ func follow(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if r.Method == http.MethodPost && r.URL.Query().Get("follow") != "" {
+	if r.Method == http.MethodPost {
 		// Decode request body
 		var requestData struct {
-			FollowUsername string `json:"follow"`
-		}
-
-		// Get user ID
-		followsUserID, err := getUserID(db, requestData.FollowUsername)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "User not found", http.StatusNotFound)
-			} else {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		// Follow the user
-		query := `INSERT INTO follower (who_id, whom_id) VALUES (?, ?)`
-		_, err = db.Exec(query, userID, followsUserID)
-		if err != nil {
-			http.Error(w, "Database insert error", http.StatusInternalServerError)
-			return
-		}
-
-		// Send JSON response
-		w.WriteHeader(http.StatusNoContent)
-	} else if r.Method == http.MethodPost && r.URL.Query().Get("unfollow") != "" {
-		// Decode request body
-		var requestData struct {
+			FollowUsername   string `json:"follow"`
 			UnFollowUsername string `json:"unfollow"`
 		}
-
-		// Get user ID
-		unfollowUserID, err := getUserID(db, requestData.UnFollowUsername)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "User not found", http.StatusNotFound)
-			} else {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		// Unfollow the user
-		query := `DELETE FROM follower WHERE who_id = ? AND whom_id = ?`
-		_, err = db.Exec(query, userID, unfollowUserID)
-		if err != nil {
-			http.Error(w, "Database insert error", http.StatusInternalServerError)
+		if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+			http.Error(w, `{"status": 400, "error_msg": "Invalid JSON"}`, http.StatusBadRequest)
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		if requestData.FollowUsername != "" {
+			// Get user ID
+			followsUserID, err := getUserID(db, requestData.FollowUsername)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					http.Error(w, "Database error", http.StatusInternalServerError)
+					return
+				}
+			}
+
+			// Follow the user
+			query := `INSERT INTO follower (who_id, whom_id) VALUES (?, ?)`
+			_, err = db.Exec(query, userID, followsUserID)
+			if err != nil {
+				http.Error(w, "Database insert error", http.StatusInternalServerError)
+				return
+			}
+
+			// Send JSON response
+			w.WriteHeader(http.StatusNoContent)
+		} else if requestData.UnFollowUsername != "" {
+			// Get user ID
+			unfollowUserID, err := getUserID(db, requestData.UnFollowUsername)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					http.Error(w, "Database error", http.StatusInternalServerError)
+					return
+				}
+			}
+
+			// Unfollow the user
+			query := `DELETE FROM follower WHERE who_id = ? AND whom_id = ?`
+			_, err = db.Exec(query, userID, unfollowUserID)
+			if err != nil {
+				http.Error(w, "Database insert error", http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		}
 	} else if r.Method == http.MethodGet {
 		noFollowers := 100 // Default 100 followers
 		if noFollowersStr := r.URL.Query().Get("no"); noFollowersStr != "" {
@@ -370,7 +375,6 @@ func follow(w http.ResponseWriter, r *http.Request) {
 					INNER JOIN follower ON follower.whom_id=user.user_id
 					WHERE follower.who_id=?
 					LIMIT ?`
-
 		rows, err := db.Query(query, userID, noFollowers)
 		if err != nil {
 			http.Error(w, "Database query error", http.StatusInternalServerError)
@@ -386,6 +390,7 @@ func follow(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Error scanning result", http.StatusInternalServerError)
 				return
 			}
+			fmt.Println("Follower:", username)
 			followerNames = append(followerNames, username)
 		}
 
@@ -404,7 +409,6 @@ func updateLatest(r *http.Request) {
 		return
 	}
 
-	fmt.Println("Updating latest ID to:", latest)
 	parsedCommandID, err := strconv.Atoi(latest)
 	if err != nil || parsedCommandID == -1 {
 		return
