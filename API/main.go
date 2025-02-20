@@ -390,7 +390,6 @@ func follow(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Error scanning result", http.StatusInternalServerError)
 				return
 			}
-			fmt.Println("Follower:", username)
 			followerNames = append(followerNames, username)
 		}
 
