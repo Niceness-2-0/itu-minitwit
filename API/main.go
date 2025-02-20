@@ -109,6 +109,73 @@ func getLatest(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// notReqFromSimulator checks if the request is authorized
+func notReqFromSimulator(w http.ResponseWriter, r *http.Request) bool {
+	fromSimulator := r.Header.Get("Authorization")
+
+	// Expected authorization header value
+	expectedAuth := "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh"
+
+	if fromSimulator != expectedAuth {
+		http.Error(w, `{"status": 400, "error_msg": "You are not authorized to use this resource!"}`, http.StatusForbidden)
+		return false
+	}
+
+	return true
+}
+
+// getMessages
+func getMessages(w http.ResponseWriter, r *http.Request) {
+	updateLatest(r)
+
+	if !notReqFromSimulator(w, r) {
+		return
+	}
+
+	noMsgs := 100 // Default 100 messages
+	if noMsgsStr := r.URL.Query().Get("no"); noMsgsStr != "" {
+		if num, err := strconv.Atoi(noMsgsStr); err == nil {
+			noMsgs = num
+		}
+	}
+
+	db, err := getDBFromContext(r)
+	// Query messages
+	query := `SELECT message.text, message.pub_date, user.username 
+	FROM message 
+	JOIN user ON message.author_id = user.user_id 
+	WHERE message.flagged = 0 
+	ORDER BY message.pub_date DESC 
+	LIMIT ?`
+
+	rows, err := db.Query(query, noMsgs)
+	if err != nil {
+		http.Error(w, "Database query error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// Message represents a message from the database
+	type Message struct {
+		Content string `json:"content"`
+		PubDate int64  `json:"pub_date"`
+		User    string `json:"user"`
+	}
+	// Process results
+	var messages []Message
+	for rows.Next() {
+		var msg Message
+		if err := rows.Scan(&msg.Content, &msg.PubDate, &msg.User); err != nil {
+			http.Error(w, "Error scanning row", http.StatusInternalServerError)
+			return
+		}
+		messages = append(messages, msg)
+	}
+	// Send JSON response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(messages)
+}
+
 // updateLatest writes the latest processed command ID to a file
 func updateLatest(r *http.Request) {
 	latest := r.URL.Query().Get("latest")
@@ -199,6 +266,7 @@ func main() {
 
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
 	r.HandleFunc("/latest", getLatest).Methods("GET")
+	r.HandleFunc("/msgs", getMessages).Methods("GET")
 
 	http.Handle("/", r)
 	log.Println("Server running on port 5001")
