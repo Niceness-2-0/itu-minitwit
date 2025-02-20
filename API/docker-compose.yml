@@ -7,7 +7,7 @@ services:
     volumes:
       - ./minitwit.db:/API/minitwit.db  # Mount SQLite database file into the container
     ports:
-      - "5000:5000"
+      - "5001:5001"
     environment:
       - DATABASE=/API/minitwit.db
     container_name: go-api
