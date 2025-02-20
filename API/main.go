@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
@@ -22,6 +24,13 @@ type User struct {
 	Username string `gorm:"uniqueIndex"`
 	Email    string
 	Password string
+}
+
+// Message represents a message with user from the database
+type Message struct {
+	Content string `json:"content"`
+	PubDate int64  `json:"pub_date"`
+	User    string `json:"user"`
 }
 
 const DATABASE = "./minitwit.db"
@@ -87,6 +96,19 @@ func getDBFromContext(r *http.Request) (*sql.DB, error) {
 		return nil, os.ErrInvalid
 	}
 	return db, nil
+}
+
+// getUserID fetches the user ID given a username
+func getUserID(db *sql.DB, username string) (int, error) {
+	var userID int
+	err := db.QueryRow("SELECT user_id FROM user WHERE username = ?", username).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil // User not found
+		}
+		return 0, err
+	}
+	return userID, nil
 }
 
 // getLatest reads the latest processed command ID from a file and returns it as JSON
@@ -155,12 +177,6 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	// Message represents a message from the database
-	type Message struct {
-		Content string `json:"content"`
-		PubDate int64  `json:"pub_date"`
-		User    string `json:"user"`
-	}
 	// Process results
 	var messages []Message
 	for rows.Next() {
@@ -174,6 +190,95 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	// Send JSON response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(messages)
+}
+
+// messagesPerUser handles GET (retrieve messages) and POST (post a message)
+func messagesPerUser(w http.ResponseWriter, r *http.Request) {
+	updateLatest(r)
+	vars := mux.Vars(r)
+	username := vars["username"]
+
+	if !notReqFromSimulator(w, r) {
+		return
+	}
+
+	noMsgs := 100 // Default 100 messages
+	if noMsgsStr := r.URL.Query().Get("no"); noMsgsStr != "" {
+		if num, err := strconv.Atoi(noMsgsStr); err == nil {
+			noMsgs = num
+		}
+	}
+
+	db, _ := getDBFromContext(r)
+	if r.Method == http.MethodGet {
+
+		// Get user ID
+		userID, err := getUserID(db, username)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "User not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Query messages
+		query := `SELECT message.text, message.pub_date, user.username 
+			FROM message 
+			JOIN user ON message.author_id = user.user_id 
+			WHERE message.flagged = 0 AND user.user_id = ? 
+			ORDER BY message.pub_date DESC 
+			LIMIT ?`
+
+		rows, err := db.Query(query, userID, noMsgs)
+		if err != nil {
+			http.Error(w, "Database query error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+		// Process results
+		var messages []Message
+		for rows.Next() {
+			var msg Message
+			if err := rows.Scan(&msg.Content, &msg.PubDate, &msg.User); err != nil {
+				http.Error(w, "Error scanning row", http.StatusInternalServerError)
+				return
+			}
+			messages = append(messages, msg)
+		}
+		// Send JSON response
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(messages)
+	} else if r.Method == http.MethodPost {
+		// Decode request body
+		var requestData struct {
+			Content string `json:"content"`
+		}
+
+		// Get user ID
+		userID, err := getUserID(db, username)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "User not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Insert message into DB
+		query := `INSERT INTO message (author_id, text, pub_date, flagged)
+				  VALUES (?, ?, ?, 0)`
+
+		_, err = db.Exec(query, userID, requestData.Content, time.Now().Unix())
+		if err != nil {
+			http.Error(w, "Database insert error", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // updateLatest writes the latest processed command ID to a file
@@ -267,6 +372,7 @@ func main() {
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
 	r.HandleFunc("/latest", getLatest).Methods("GET")
 	r.HandleFunc("/msgs", getMessages).Methods("GET")
+	r.HandleFunc("/msgs/{username}", messagesPerUser).Methods("GET", "POST")
 
 	http.Handle("/", r)
 	log.Println("Server running on port 5001")
