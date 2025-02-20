@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ block "title" . }}Welcome{{ end }} | MiniTwit</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/assets/style.css">
 </head>
 
 <body>
@@ -15,7 +15,7 @@
       {{ if .User }}
       <a href="/">my timeline</a> |
       <a href="/public">public timeline</a> |
-      <a href="/logout">sign out [{{ .User.Username }}]</a>
+      <a href="/logout">sign out [{{ .Username }}]</a>
       {{ else }}
       <a href="/public">public timeline</a> |
       <a href="/register">sign up</a> |
@@ -31,9 +31,9 @@
       {{ end }}
     </ul>
     {{ end }}
-
+  
     <div class="body">
-      {{ block "body" . }}{{ end }}
+      {{ template "content" . }} <!-- insert the template named "content" here -->
     </div>
 
     <div class="footer">
