@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -25,7 +24,8 @@ const (
 )
 
 var (
-	db    *sql.DB // define a global database connection
+	// define a global database connection (not used in the case because DB connection is initialized in each function)
+	db    *sql.DB
 	store = sessions.NewCookieStore([]byte(SECRET))
 )
 
@@ -63,7 +63,7 @@ func initDB() error {
 	// Read the schema file using os.ReadFile
 	schema, err := os.ReadFile("schema.sql")
 	if err != nil {
-		return err // Return an error if the file can't be read
+		return err
 	}
 
 	// Execute the schema script
@@ -72,7 +72,7 @@ func initDB() error {
 		_, err = db.Exec(string(schema))
 	}
 	if err != nil {
-		return err // Return an error if the execution fails
+		return err
 	}
 
 	return nil
@@ -83,11 +83,10 @@ func getUserID(db *sql.DB, username string) (int, error) {
 	err := db.QueryRow("SELECT user_id FROM user WHERE username = ?", username).Scan(&userID)
 
 	if err == sql.ErrNoRows {
-		// If no user is found, return 0 (or any other value that indicates not found) and nil error
 		return -1, nil
 	}
 	if err != nil {
-		return 0, err // Return any other error that occurs during the query
+		return 0, err
 	}
 
 	return userID, nil
@@ -117,6 +116,12 @@ func getSessionUserID(r *http.Request) (int, bool) {
 	return id, id > 0
 }
 
+/*
+Shows a users timeline or if no user is logged in it will redirect to the public timeline (/public).
+This timeline shows the user's messages as well as all the messages of followed users.
+
+Endpoint - /
+*/
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("timelineHandler called")
 	userID, loggedIn := getSessionUserID(r)
@@ -179,12 +184,6 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		"Flashes":  flashes,
 	}
 
-	if username, ok := data["Username"].(string); ok {
-		log.Println("The retrieved username is", username)
-	} else {
-		log.Println("No username found in data map")
-	}
-
 	// Parse (creates a template set) with the needed templates for rendering
 	tmpl, err := template.ParseFiles("templates/layout.html", "templates/timeline.html")
 	if err != nil {
@@ -196,13 +195,16 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	err = tmpl.ExecuteTemplate(w, "layout.html", data)
 	if err != nil {
-		log.Println("Template rendering error:", err)
 		http.Error(w, "Template rendering error", http.StatusInternalServerError)
 		return
 	}
 }
 
-// publicTimelineHandler handles requests to the /public endpoint
+/*
+Displays the latest messages of all users.
+
+Endpoint - /public
+*/
 func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("publicTimelineHandler called")
 
@@ -245,15 +247,16 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log session values
-	log.Printf("Current Session Values: %+v", session.Values)
+	flashes := session.Flashes()
+	session.Save(r, w)
 
 	// Define template data
 	data := map[string]interface{}{
 		"Title":    "Public Timeline",
 		"Messages": messages,
-		"User":     session.Values["user_id"],
+		"User":     getUserID(),
 		"Username": session.Values["username"],
+		"Flashes":  flashes,
 	}
 
 	tmpl, err := template.ParseFiles("templates/layout.html", "templates/timeline.html")
@@ -271,12 +274,12 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func sendErrorResponse(w http.ResponseWriter, errorMessage string) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
-}
+/*
+Logs the user in the MiniTwit account.
+Precondition: A valid account should be existing in the database.
 
-// loginHandler handles login requests
+Endpoint - /login
+*/
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("loginHandler called")
 	tmpl, err := template.ParseFiles("templates/layout.html", "templates/login.html")
@@ -286,8 +289,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
-			"Error":    "", // No error initially
-			"Username": "", // Empty username field
+			"Error":    "",
+			"Username": "",
 		})
 		return
 	}
@@ -341,14 +344,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		} else {
-			// Start a session and store the user ID in the session
+
 			session, err := store.Get(r, "session-name")
 			if err != nil {
-				// sendErrorResponse(w, "Failed to get session")
-				tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
-					"Error":    "Failed to retrieve session",
-					"Username": username,
-				})
+				http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 				return
 			}
 
@@ -365,18 +364,24 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			fmt.Println("User logged in", session.Values["user_id"])
 			// Respond with a success message
 			// w.Header().Set("Content-Type", "application/json")
 			// json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
 			// Redirect to timeline after successful login
+			session.AddFlash("You were logged in")
+			session.Save(r, w)
+
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 	}
 }
 
-// registerHandler handles registration requests
+/*
+Registers the user.
+
+Endpoint - /register
+*/
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("registerHandler called")
 	tmpl, err := template.ParseFiles("templates/layout.html", "templates/register.html")
@@ -402,22 +407,47 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Validate form data
 		if username == "" {
-			sendErrorResponse(w, "You have to enter a username")
+			// sendErrorResponse(w, "You have to enter a username")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "You have to enter a username",
+				"Username": username, // Retain entered username
+			})
 			return
 		} else if email == "" || !regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`).MatchString(email) {
-			sendErrorResponse(w, "You have to enter a valid email address")
+			// sendErrorResponse(w, "You have to enter a valid email address")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "You have to enter a valid email address",
+				"Username": username, // Retain entered username
+				"Email":    email,    // Retain entered email
+			})
 			return
 		} else if password == "" {
-			sendErrorResponse(w, "You have to enter a password")
+			// sendErrorResponse(w, "You have to enter a password")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "You have to enter a password",
+				"Username": username, // Retain entered username
+				"Email":    email,    // Retain entered email
+			})
 			return
 		} else if password != password2 {
-			sendErrorResponse(w, "The two passwords do not match")
+			// sendErrorResponse(w, "The two passwords do not match")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "The two passwords do not match",
+				"Username": username, // Retain entered username
+				"Email":    email,    // Retain entered email
+			})
 			return
 		}
 
 		db, err := connectDB()
 		if err != nil {
-			sendErrorResponse(w, "Database connection error")
+			// sendErrorResponse(w, "Database connection error")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "Database connection error",
+				"Username": username,
+				"Email":    email,
+				"Password": password,
+			})
 			return
 		}
 		defer db.Close()
@@ -425,48 +455,70 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Check if the username already exists
 		userID, err := getUserID(db, username)
 		if err != nil {
-			sendErrorResponse(w, "Database query error")
+			// sendErrorResponse(w, "Database query error")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "Database query error",
+				"Username": username,
+				"Email":    email,
+				"Password": password,
+			})
 			return
 		}
 		if userID != -1 {
 			// If userID is non-zero, it means the username already exists
-			json.NewEncoder(w).Encode(map[string]string{"error": "The username is already taken"})
+			// json.NewEncoder(w).Encode(map[string]string{"error": "The username is already taken"})
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error": "The username is already taken",
+			})
 			return
 		}
 
 		// Hash the password
 		pwHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			sendErrorResponse(w, "Error hashing password")
+			// sendErrorResponse(w, "Error hashing password")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "Error hashing password",
+				"Username": username,
+			})
 			return
 		}
 
 		// Insert user into database
 		_, err = db.Exec("INSERT INTO user (username, email, pw_hash) VALUES (?, ?, ?)", username, email, pwHash)
 		if err != nil {
-			sendErrorResponse(w, "Error inserting user into database")
+			// sendErrorResponse(w, "Error inserting user into database")
+			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+				"Error":    "Error inserting user into database",
+				"Username": username,
+			})
 			return
 		}
 
 		// Respond with success message
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"message": "You were successfully registered and can login now"})
+		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
 }
 
+/*
+Logs the user out.
+
+Endpoint - /logout
+*/
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("logoutHandler called")
-	// Get the session
+
 	session, err := store.Get(r, "session-name")
 	if err != nil {
 		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
 	}
 
-	// Remove the 'user_id' from the session
+	// Remove the 'user_id' and username from the session
 	delete(session.Values, "user_id")
 	delete(session.Values, "username")
+	session.Options.ma
 
 	// Save the session after modification
 	err = session.Save(r, w)
@@ -475,13 +527,19 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fmt.Println("User logged out", session.Values["user_id"])
 	// w.Header().Set("Content-Type", "application/json")
 	// json.NewEncoder(w).Encode(map[string]string{"message": "You were logged out"})
-	// TODO Redirecting to timeline
+	session.AddFlash("You were logged out")
+	session.Save(r, w)
+
 	http.Redirect(w, r, "/public", http.StatusFound)
 }
 
+/*
+Shows a user's profile, displays their tweets.
+
+Endpoint - /{username}
+*/
 func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("userTimelineHandler called")
 	vars := mux.Vars(r)
@@ -539,14 +597,46 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, msg)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"messages":     messages,
-		"followed":     followed,
-		"profile_user": profileUser,
-	})
+	session, err := store.Get(r, "session-name")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	flashes := session.Flashes()
+	session.Save(r, w) // Clear flashes after retrieval
+
+	// Define template data
+	data := map[string]interface{}{
+		"ProfileUser": profileUser,
+		"Messages":    messages,
+		"User":        session.Values["user_id"],
+		"Username":    session.Values["username"],
+		"Followed":    followed,
+		"Flashes":     flashes,
+	}
+
+	tmpl, err := template.ParseFiles("templates/layout.html", "templates/timeline.html")
+	if err != nil {
+		http.Error(w, "Template parsing error", http.StatusInternalServerError)
+		return
+	}
+
+	// Render using the base template
+	w.Header().Set("Content-Type", "text/html")
+	err = tmpl.ExecuteTemplate(w, "layout.html", data)
+	if err != nil {
+		http.Error(w, "Template rendering error", http.StatusInternalServerError)
+		return
+	}
 }
 
+/*
+Adds the current user as a follower of the given user.
+Postcondition: The followed user's tweets will be visible in the current user's timeline.
+
+Endpoint: /{username}/follow
+*/
 func followUserHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("followUserHandler called")
 	userID, loggedIn := getSessionUserID(r)
@@ -587,14 +677,18 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Set flash message (as in the Flask version)
 	flashMessage := fmt.Sprintf("You are now following \"%s\"", username)
-	fmt.Print(flashMessage)
-	session.Values["flash"] = flashMessage
+	session.AddFlash(flashMessage)
 	session.Save(r, w)
 
 	// Redirect to user timeline
 	http.Redirect(w, r, "/"+username, http.StatusSeeOther)
 }
 
+/*
+Removes the current user as follower of the given user
+
+Endpoint: /{username}/unfollow
+*/
 func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("unfollowUserHandler called")
 	userID, loggedIn := getSessionUserID(r)
@@ -626,13 +720,8 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "You are no longer following " + username})
-}
-
-func addMessageHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("addMessageHandler called")
-	userID, loggedIn := getSessionUserID(r)
+	// w.Header().Set("Content-Type", "application/json")
+	// json.NewEncoder(w).Encode(map[string]string{"message": "You are no longer following " + username})
 	// Get the session
 	session, err := store.Get(r, "session-name")
 	if err != nil {
@@ -640,9 +729,28 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Debugging session values
-	fmt.Printf("Raw session values: %+v\n", session.Values)
-	fmt.Printf("user_id in session: %v, Type: %T\n", session.Values["user_id"], session.Values["user_id"])
+	flashMessage := fmt.Sprintf("You are no longer following \"%s\"", username)
+	session.AddFlash(flashMessage)
+	session.Save(r, w)
+
+	// Redirect to user timeline
+	http.Redirect(w, r, "/"+username, http.StatusSeeOther)
+}
+
+/*
+Registers a new message for the user
+
+Endpoint: /add_message
+*/
+func addMessageHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("addMessageHandler called")
+	userID, loggedIn := getSessionUserID(r)
+
+	session, err := store.Get(r, "session-name")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
 
 	// Check if the user is logged in
 	if !loggedIn {
@@ -673,7 +781,6 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store flash message in session
-	//session.Values["flash"] = "Your message was recorded"
 	session.AddFlash("Your message was recorded!")
 	session.Save(r, w)
 
@@ -693,7 +800,7 @@ func main() {
 		SameSite: http.SameSiteLaxMode,
 	}
 
-	// register a handler to serve the directory where the static files (such as css) are
+	// Register a handler to serve the directory where the static files are (e.g. CSS)
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
@@ -706,6 +813,6 @@ func main() {
 	r.HandleFunc("/{username}/unfollow", unfollowUserHandler).Methods("GET")
 	r.HandleFunc("/add_message", addMessageHandler).Methods("POST")
 
-	log.Println("Server started on :5000")
-	log.Fatal(http.ListenAndServe(":5000", r))
+	log.Println("Server started on :5010")
+	log.Fatal(http.ListenAndServe(":5010", r))
 }
