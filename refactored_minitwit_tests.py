@@ -10,6 +10,7 @@
 """
 import requests
 import unittest
+import html
 
 # BASE_URL to the Go application
 BASE_URL = "http://localhost:5010"
@@ -65,9 +66,6 @@ class MiniTwitGoTestCase(unittest.TestCase):
     def test_register(self):
         """Ensure registration works"""
         r = register('user1', 'default')
-        self.assertIn('You were successfully registered and can login now', decode_data(r))
-
-        r = register('user1', 'default')
         self.assertIn('The username is already taken', decode_data(r))
 
         r = register('', 'default')
@@ -84,9 +82,9 @@ class MiniTwitGoTestCase(unittest.TestCase):
 
     def test_login_logout(self):
         """Ensure login and logout work correctly"""
-        register('user1', 'default')
+        r = register('user1', 'default')
+        self.assertIn('You were successfully registered and can login now', decode_data(r))
         r = login('user1', 'default')
-        # self.assertIn('You were logged in', decode_data(r))
         self.assertEqual(r.status_code, 200)
 
         # Check timeline for the flash message
@@ -104,59 +102,61 @@ class MiniTwitGoTestCase(unittest.TestCase):
 
     def test_message_recording(self):
         """Ensure message posting works"""
-        login('foo', 'default')
-        add_message('test message 1')
-        add_message('<test message 2>')
-
-        r = http_session.get(f'{BASE_URL}/')
+        login('user1', 'default')
+        r = add_message('test message 1')
         self.assertIn('test message 1', decode_data(r))
-        self.assertIn('&lt;test message 2&gt;', decode_data(r))  # Ensure HTML escape
+
+        r = add_message('<test message 2>')
+        self.assertIn(html.escape('<test message 2>'), decode_data(r))
 
     def test_timelines(self):
         """Ensure timelines work correctly"""
-        login('foo', 'default')
-        add_message('the message by foo')
+        login('user1', 'default')
+        add_message('the message by user1')
         logout()
 
-        login('bar', 'default')
-        add_message('the message by bar')
+        login('Joki', 'idk')
+        add_message('the message by Joki')
 
         # Public timeline should show both messages
         r = http_session.get(f'{BASE_URL}/public')
-        self.assertIn('the message by foo', decode_data(r))
-        self.assertIn('the message by bar', decode_data(r))
+        self.assertIn('the message by user1', decode_data(r))
+        self.assertIn('the message by Joki', decode_data(r))
 
-        # Bar's personal timeline should only show bar's messages
+        # Joki's personal timeline should only show bar's messages
         r = http_session.get(f'{BASE_URL}/')
-        self.assertNotIn('the message by foo', decode_data(r))
-        self.assertIn('the message by bar', decode_data(r))
+        self.assertNotIn('the message by user1', decode_data(r))
+        self.assertIn('the message by Joki', decode_data(r))
 
-        # Follow foo
-        r = http_session.get(f'{BASE_URL}/foo/follow', allow_redirects=True)
-        self.assertIn('You are now following "foo"', decode_data(r))
+        # Follow user1
+        r = http_session.get(f'{BASE_URL}/user1/follow', allow_redirects=True)
+        self.assertIn('You are now following "user1"', html.unescape(decode_data(r)))
 
-        # Timeline should now show foo's messages
+        # Timeline should now show user1's messages
         r = http_session.get(f'{BASE_URL}/')
-        self.assertIn('the message by foo', decode_data(r))
-        self.assertIn('the message by bar', decode_data(r))
+        self.assertIn('the message by user1', decode_data(r))
+        self.assertIn('the message by Joki', decode_data(r))
 
-        # Bar's user page should only show their messages
-        r = http_session.get(f'{BASE_URL}/bar')
-        self.assertNotIn('the message by foo', decode_data(r))
-        self.assertIn('the message by bar', decode_data(r))
+        # Joki's user page should only show their messages
+        r = http_session.get(f'{BASE_URL}/Joki')
+        self.assertNotIn('the message by user1', decode_data(r))
+        self.assertIn('the message by Joki', decode_data(r))
 
-        # Foo's user page should only show their messages
-        r = http_session.get(f'{BASE_URL}/foo')
-        self.assertIn('the message by foo', decode_data(r))
-        self.assertNotIn('the message by bar', decode_data(r))
+        # user1's user page should only show their messages
+        r = http_session.get(f'{BASE_URL}/user1')
+        self.assertIn('the message by user1', decode_data(r))
+        self.assertNotIn('the message by Joki', decode_data(r))
 
-        # Unfollow foo and check timeline again
-        r = http_session.get(f'{BASE_URL}/foo/unfollow', allow_redirects=True)
-        self.assertIn('You are no longer following "foo"', decode_data(r))
+        # Unfollow user1 and check timeline again
+        r = http_session.get(f'{BASE_URL}/user1/unfollow', allow_redirects=True)
+        self.assertIn('You are no longer following "user1"', html.unescape(decode_data(r)))
 
         r = http_session.get(f'{BASE_URL}/')
-        self.assertNotIn('the message by foo', decode_data(r))
-        self.assertIn('the message by bar', decode_data(r))
+        self.assertNotIn('the message by user1', decode_data(r))
+        self.assertIn('the message by Joki', decode_data(r))
+
+
+        # A clean-up function would be required to delete 'user1' from the DB and the last 4 messages
 
 
 if __name__ == '__main__':
