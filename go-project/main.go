@@ -24,9 +24,7 @@ const (
 )
 
 var (
-	// define a global database connection (not used in the case because DB connection is initialized in each function)
-	db    *sql.DB
-	store = sessions.NewCookieStore([]byte(SECRET))
+	store = sessions.NewCookieStore([]byte(SECRET)) // this is stored on the client
 )
 
 // Message represents a single message in the public timeline
@@ -92,7 +90,13 @@ func getUserID(db *sql.DB, username string) (int, error) {
 	return userID, nil
 }
 
-// Attaches the "userID" to every request before running it (as @app.before_request in Flask)
+/*
+Attaches the "userID" to every request before running it (as @app.before_request in Flask)
+
+	Appends the userID to every request header so it can be retrieven from there
+	If ok == nil means there is no "user_id" variable so no session active
+*/
+
 func withSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := store.Get(r, "session-name")
@@ -254,7 +258,7 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
 		"Title":    "Public Timeline",
 		"Messages": messages,
-		"User":     getUserID(),
+		"User":     session.Values["user_id"],
 		"Username": session.Values["username"],
 		"Flashes":  flashes,
 	}
@@ -287,10 +291,20 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Template parsing error", http.StatusInternalServerError)
 	}
 
+	session, err := store.Get(r, "session-name")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	flashes := session.Flashes()
+	session.Save(r, w)
+
 	if r.Method == http.MethodGet {
 		tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 			"Error":    "",
 			"Username": "",
+			"Flashes":  flashes,
 		})
 		return
 	}
@@ -344,13 +358,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		} else {
-
-			session, err := store.Get(r, "session-name")
-			if err != nil {
-				http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
-				return
-			}
-
 			// Store user_id and username in the session
 			session.Values["user_id"] = user.ID
 			session.Values["username"] = user.Username
@@ -407,14 +414,12 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Validate form data
 		if username == "" {
-			// sendErrorResponse(w, "You have to enter a username")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a username",
 				"Username": username, // Retain entered username
 			})
 			return
 		} else if email == "" || !regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`).MatchString(email) {
-			// sendErrorResponse(w, "You have to enter a valid email address")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a valid email address",
 				"Username": username, // Retain entered username
@@ -467,6 +472,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		if userID != -1 {
 			// If userID is non-zero, it means the username already exists
 			// json.NewEncoder(w).Encode(map[string]string{"error": "The username is already taken"})
+			// w.WriteHeader(http.StatusBadRequest) // 400 Bad Request for duplicate username
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error": "The username is already taken",
 			})
@@ -476,7 +482,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Hash the password
 		pwHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			// sendErrorResponse(w, "Error hashing password")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Error hashing password",
 				"Username": username,
@@ -487,7 +492,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Insert user into database
 		_, err = db.Exec("INSERT INTO user (username, email, pw_hash) VALUES (?, ?, ?)", username, email, pwHash)
 		if err != nil {
-			// sendErrorResponse(w, "Error inserting user into database")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Error inserting user into database",
 				"Username": username,
@@ -495,7 +499,15 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Respond with success message
+		session, err := store.Get(r, "session-name")
+		if err != nil {
+			http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+			return
+		}
+
+		session.AddFlash("You were successfully registered and can login now")
+		session.Save(r, w)
+
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
@@ -518,7 +530,6 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Remove the 'user_id' and username from the session
 	delete(session.Values, "user_id")
 	delete(session.Values, "username")
-	session.Options.ma
 
 	// Save the session after modification
 	err = session.Save(r, w)
@@ -794,7 +805,7 @@ func main() {
 
 	store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400, // 1 day
+		MaxAge:   0, // 1 day
 		HttpOnly: true,
 		Secure:   false, // Must be true in production with HTTPS
 		SameSite: http.SameSiteLaxMode,
