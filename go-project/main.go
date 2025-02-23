@@ -105,6 +105,7 @@ func withSession(next http.Handler) http.Handler {
 		if ok && userID > 0 {
 			r.Header.Set("User-ID", fmt.Sprint(userID))
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -298,7 +299,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flashes := session.Flashes()
-	session.Save(r, w)
 
 	if r.Method == http.MethodGet {
 		tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
@@ -315,14 +315,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Validate form data
 		if username == "" {
-			// sendErrorResponse(w, "You have to enter a username")
+			w.WriteHeader(http.StatusBadRequest)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a username",
 				"Username": username, // Retain entered username
 			})
 			return
 		} else if password == "" {
-			// sendErrorResponse(w, "You have to enter a password")
+			w.WriteHeader(http.StatusBadRequest)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a password",
 				"Username": username,
@@ -332,7 +332,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		db, err := connectDB()
 		if err != nil {
-			// sendErrorResponse(w, "Database connection error")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Database connection error",
 				"Username": username,
@@ -344,14 +343,13 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		var user User
 		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
 		if err != nil {
-			// sendErrorResponse(w, "Invalid username")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Invalid username",
 				"Username": username,
 			})
 			return
 		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
-			// sendErrorResponse(w, "Invalid password")
+			w.WriteHeader(http.StatusUnauthorized)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Invalid password",
 				"Username": username,
@@ -363,7 +361,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			session.Values["username"] = user.Username
 			err = session.Save(r, w)
 			if err != nil {
-				// sendErrorResponse(w, "Failed to save session")
 				tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 					"Error":    "Failed to save session",
 					"Username": username,
@@ -371,9 +368,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Respond with a success message
-			// w.Header().Set("Content-Type", "application/json")
-			// json.NewEncoder(w).Encode(map[string]string{"message": "You were logged in"})
 			// Redirect to timeline after successful login
 			session.AddFlash("You were logged in")
 			session.Save(r, w)
@@ -414,12 +408,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Validate form data
 		if username == "" {
+			w.WriteHeader(http.StatusBadRequest)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a username",
 				"Username": username, // Retain entered username
 			})
 			return
 		} else if email == "" || !regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`).MatchString(email) {
+			w.WriteHeader(http.StatusBadRequest)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a valid email address",
 				"Username": username, // Retain entered username
@@ -427,7 +423,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		} else if password == "" {
-			// sendErrorResponse(w, "You have to enter a password")
+			w.WriteHeader(http.StatusBadRequest)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "You have to enter a password",
 				"Username": username, // Retain entered username
@@ -435,7 +431,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		} else if password != password2 {
-			// sendErrorResponse(w, "The two passwords do not match")
+			w.WriteHeader(http.StatusBadRequest)
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "The two passwords do not match",
 				"Username": username, // Retain entered username
@@ -446,7 +442,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		db, err := connectDB()
 		if err != nil {
-			// sendErrorResponse(w, "Database connection error")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Database connection error",
 				"Username": username,
@@ -460,7 +455,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		// Check if the username already exists
 		userID, err := getUserID(db, username)
 		if err != nil {
-			// sendErrorResponse(w, "Database query error")
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Database query error",
 				"Username": username,
@@ -471,8 +465,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if userID != -1 {
 			// If userID is non-zero, it means the username already exists
-			// json.NewEncoder(w).Encode(map[string]string{"error": "The username is already taken"})
-			// w.WriteHeader(http.StatusBadRequest) // 400 Bad Request for duplicate username
+			w.WriteHeader(http.StatusBadRequest) // 400 Bad Request for duplicate username
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error": "The username is already taken",
 			})
@@ -538,8 +531,6 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(map[string]string{"message": "You were logged out"})
 	session.AddFlash("You were logged out")
 	session.Save(r, w)
 
@@ -731,9 +722,6 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(map[string]string{"message": "You are no longer following " + username})
-	// Get the session
 	session, err := store.Get(r, "session-name")
 	if err != nil {
 		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
@@ -805,7 +793,7 @@ func main() {
 
 	store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   0, // 1 day
+		MaxAge:   86400, // 1 day
 		HttpOnly: true,
 		Secure:   false, // Must be true in production with HTTPS
 		SameSite: http.SameSiteLaxMode,
