@@ -91,37 +91,6 @@ func getUserID(db *sql.DB, username string) (int, error) {
 }
 
 /*
-Attaches the "userID" to every request before running it (as @app.before_request in Flask)
-
-	Appends the userID to every request header so it can be retrieven from there
-	If ok == nil means there is no "user_id" variable so no session active
-*/
-
-func withSession(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, _ := store.Get(r, "session-name")
-
-		userID, ok := session.Values["user_id"].(int)
-		if ok && userID > 0 {
-			r.Header.Set("User-ID", fmt.Sprint(userID))
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// Retrieve logged-in "userID" from the session
-func getSessionUserID(r *http.Request) (int, bool) {
-	userID := r.Header.Get("User-ID")
-	if userID == "" {
-		return 0, false
-	}
-	var id int
-	fmt.Sscanf(userID, "%d", &id)
-	return id, id > 0
-}
-
-/*
 Shows a users timeline or if no user is logged in it will redirect to the public timeline (/public).
 This timeline shows the user's messages as well as all the messages of followed users.
 
@@ -129,8 +98,22 @@ Endpoint - /
 */
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("timelineHandler called")
-	userID, loggedIn := getSessionUserID(r)
+
+	session, err := store.Get(r, "session-cookie")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	loggedIn := false
+	if (session.Values["authenticated"] != nil) && (session.Values["authenticated"] != false) {
+		loggedIn = true
+	}
+
 	if !loggedIn {
+		if session.IsNew {
+			session.Save(r, w) // send the 'Set-Cookie' header only when the session is first created
+		}
 		http.Redirect(w, r, "/public", http.StatusFound)
 		return
 	}
@@ -153,7 +136,7 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
         JOIN user ON message.author_id = user.user_id
         WHERE message.flagged = 0 AND (user.user_id = ? OR user.user_id IN (SELECT whom_id FROM follower WHERE who_id = ?))
         ORDER BY message.pub_date DESC
-        LIMIT ? OFFSET ?`, userID, userID, PER_PAGE, offset)
+        LIMIT ? OFFSET ?`, session.Values["user_id"], session.Values["user_id"], PER_PAGE, offset)
 	if err != nil {
 		http.Error(w, "Database query error", http.StatusInternalServerError)
 		return
@@ -170,21 +153,14 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, msg)
 	}
 
-	// Get the session
-	session, err := store.Get(r, "session-name")
-	if err != nil {
-		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
-		return
-	}
-
 	flashes := session.Flashes()
-	session.Save(r, w) // Clear flashes after retrieval
+	session.Save(r, w)
 
 	// Define template data
 	data := map[string]interface{}{
 		"Title":    "My Timeline",
 		"Messages": messages,
-		"User":     userID,
+		"User":     session.Values["user_id"],
 		"Username": session.Values["username"],
 		"Flashes":  flashes,
 	}
@@ -246,7 +222,7 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, msg)
 	}
 
-	session, err := store.Get(r, "session-name")
+	session, err := store.Get(r, "session-cookie")
 	if err != nil {
 		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
@@ -272,7 +248,7 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Render using the base template
 	w.Header().Set("Content-Type", "text/html")
-	err = tmpl.ExecuteTemplate(w, "layout.html", data)
+	err = tmpl.ExecuteTemplate(w, "layout.html", data) // this writes the response body (from the server)
 	if err != nil {
 		http.Error(w, "Template rendering error", http.StatusInternalServerError)
 		return
@@ -292,15 +268,15 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Template parsing error", http.StatusInternalServerError)
 	}
 
-	session, err := store.Get(r, "session-name")
+	session, err := store.Get(r, "session-cookie")
 	if err != nil {
 		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
 	}
 
-	flashes := session.Flashes()
-
 	if r.Method == http.MethodGet {
+		flashes := session.Flashes()
+		session.Save(r, w)
 		tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 			"Error":    "",
 			"Username": "",
@@ -357,23 +333,15 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			// Store user_id and username in the session
+			session.Values["authenticated"] = true
 			session.Values["user_id"] = user.ID
 			session.Values["username"] = user.Username
-			err = session.Save(r, w)
-			if err != nil {
-				tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
-					"Error":    "Failed to save session",
-					"Username": username,
-				})
-				return
-			}
 
 			// Redirect to timeline after successful login
 			session.AddFlash("You were logged in")
 			session.Save(r, w)
 
 			http.Redirect(w, r, "/", http.StatusFound)
-			return
 		}
 	}
 }
@@ -391,6 +359,12 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	session, err := store.Get(r, "session-cookie")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "text/html")
 		err = tmpl.ExecuteTemplate(w, "layout.html", nil)
@@ -398,6 +372,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Template rendering error", http.StatusInternalServerError)
 			return
 		}
+		return
 	}
 
 	if r.Method == http.MethodPost {
@@ -492,17 +467,11 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		session, err := store.Get(r, "session-name")
-		if err != nil {
-			http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
-			return
-		}
-
 		session.AddFlash("You were successfully registered and can login now")
 		session.Save(r, w)
 
 		http.Redirect(w, r, "/login", http.StatusFound)
-		return
+
 	}
 }
 
@@ -514,24 +483,20 @@ Endpoint - /logout
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("logoutHandler called")
 
-	session, err := store.Get(r, "session-name")
+	session, err := store.Get(r, "session-cookie")
 	if err != nil {
 		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
 	}
 
 	// Remove the 'user_id' and username from the session
+	session.Values["authenticated"] = false
 	delete(session.Values, "user_id")
 	delete(session.Values, "username")
 
-	// Save the session after modification
-	err = session.Save(r, w)
-	if err != nil {
-		http.Error(w, "Unable to save session", http.StatusInternalServerError)
-		return
-	}
-
 	session.AddFlash("You were logged out")
+
+	// Save the session after modification
 	session.Save(r, w)
 
 	http.Redirect(w, r, "/public", http.StatusFound)
@@ -564,11 +529,21 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if the current user is following the profile user
-	userID, loggedIn := getSessionUserID(r)
+	session, err := store.Get(r, "session-cookie")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	loggedIn := false
+	if (session.Values["authenticated"] != nil) && (session.Values["authenticated"] != false) {
+		loggedIn = true
+	}
+
 	followed := false
 	if loggedIn {
 		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM follower WHERE who_id = ? AND whom_id = ?", userID, profileUser.ID).Scan(&count)
+		err = db.QueryRow("SELECT COUNT(*) FROM follower WHERE who_id = ? AND whom_id = ?", session.Values["user_id"], profileUser.ID).Scan(&count)
 		if err == nil && count > 0 {
 			followed = true
 		}
@@ -599,14 +574,8 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, msg)
 	}
 
-	session, err := store.Get(r, "session-name")
-	if err != nil {
-		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
-		return
-	}
-
 	flashes := session.Flashes()
-	session.Save(r, w) // Clear flashes after retrieval
+	session.Save(r, w)
 
 	// Define template data
 	data := map[string]interface{}{
@@ -641,7 +610,18 @@ Endpoint: /{username}/follow
 */
 func followUserHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("followUserHandler called")
-	userID, loggedIn := getSessionUserID(r)
+
+	session, err := store.Get(r, "session-cookie")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	loggedIn := false
+	if (session.Values["authenticated"] != nil) && (session.Values["authenticated"] != false) {
+		loggedIn = true
+	}
+
 	if !loggedIn {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -664,16 +644,9 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO follower (who_id, whom_id) VALUES (?, ?)", userID, whomID)
+	_, err = db.Exec("INSERT INTO follower (who_id, whom_id) VALUES (?, ?)", session.Values["user_id"], whomID)
 	if err != nil {
 		http.Error(w, "Error inserting follower into database", http.StatusInternalServerError)
-		return
-	}
-
-	// Get the session
-	session, err := store.Get(r, "session-name")
-	if err != nil {
-		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
 	}
 
@@ -693,7 +666,18 @@ Endpoint: /{username}/unfollow
 */
 func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("unfollowUserHandler called")
-	userID, loggedIn := getSessionUserID(r)
+
+	session, err := store.Get(r, "session-cookie")
+	if err != nil {
+		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+		return
+	}
+
+	loggedIn := false
+	if (session.Values["authenticated"] != nil) && (session.Values["authenticated"] != false) {
+		loggedIn = true
+	}
+
 	if !loggedIn {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -716,15 +700,9 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec("DELETE FROM follower WHERE who_id = ? AND whom_id = ?", userID, whomID)
+	_, err = db.Exec("DELETE FROM follower WHERE who_id = ? AND whom_id = ?", session.Values["user_id"], whomID)
 	if err != nil {
 		http.Error(w, "Error deleting follower from database", http.StatusInternalServerError)
-		return
-	}
-
-	session, err := store.Get(r, "session-name")
-	if err != nil {
-		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
 	}
 
@@ -743,12 +721,16 @@ Endpoint: /add_message
 */
 func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("addMessageHandler called")
-	userID, loggedIn := getSessionUserID(r)
 
-	session, err := store.Get(r, "session-name")
+	session, err := store.Get(r, "session-cookie")
 	if err != nil {
 		http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
 		return
+	}
+
+	loggedIn := false
+	if (session.Values["authenticated"] != nil) && (session.Values["authenticated"] != false) {
+		loggedIn = true
 	}
 
 	// Check if the user is logged in
@@ -773,7 +755,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	// Insert message into the database
-	_, err = db.Exec("INSERT INTO message (author_id, text, pub_date, flagged) VALUES (?, ?, ?, 0)", userID, text, time.Now().Unix())
+	_, err = db.Exec("INSERT INTO message (author_id, text, pub_date, flagged) VALUES (?, ?, ?, 0)", session.Values["user_id"], text, time.Now().Unix())
 	if err != nil {
 		http.Error(w, "Error inserting message into database", http.StatusInternalServerError)
 		return
@@ -789,14 +771,12 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	r := mux.NewRouter()
-	r.Use(withSession) // runs it before each handler function
 
 	store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400, // 1 day
+		MaxAge:   0, // expires when the broser is closed
 		HttpOnly: true,
 		Secure:   false, // Must be true in production with HTTPS
-		SameSite: http.SameSiteLaxMode,
 	}
 
 	// Register a handler to serve the directory where the static files are (e.g. CSS)
