@@ -792,6 +792,6 @@ func main() {
 	r.HandleFunc("/{username}/unfollow", unfollowUserHandler).Methods("GET")
 	r.HandleFunc("/add_message", addMessageHandler).Methods("POST")
 
-	log.Println("Server started on :5010")
-	log.Fatal(http.ListenAndServe(":5010", r))
+	log.Println("Server started on :5000")
+	log.Fatal(http.ListenAndServe(":5000", r))
 }
