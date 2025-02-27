@@ -33,7 +33,7 @@ type Message struct {
 	User    string `json:"user"`
 }
 
-const DATABASE = "./minitwit.db"
+const DATABASE = "../db/minitwit.db"
 
 // connectDB initializes and returns a database connection
 func connectDB() (*sql.DB, error) {
