@@ -319,17 +319,15 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		var user User
 		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
+		
 		if err != nil {
-<<<<<<< HEAD
-<<<<<<< HEAD
 			http.Error(w, "Invalid username", http.StatusUnauthorized)
 			return
 		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
 			http.Error(w, "Invalid password", http.StatusUnauthorized)
-=======
+
 			// sendErrorResponse(w, "Invalid username")
-=======
->>>>>>> origin/week4
+
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Invalid username",
 				"Username": username,
@@ -341,7 +339,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 				"Error":    "Invalid password",
 				"Username": username,
 			})
->>>>>>> origin/week3
 			return
 		} else {
 			// Store user_id and username in the session
