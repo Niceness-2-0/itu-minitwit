@@ -8,15 +8,16 @@ build:
 up:
 	docker-compose up -d
 
+# Stop and remove containers
 down:
 	docker-compose down
 
 logs:
 	docker-compose logs -f $(SERVICE_NAME)
 
-# Stop and remove containers
+# Stop but don't remove the containers
 stop:
-	docker-compose down
+	docker-compose stop
 
 # Clean up by stopping and removing containers and images
 clean:
