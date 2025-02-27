@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -318,7 +319,15 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		var user User
 		err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", username).Scan(&user.ID, &user.Username, &user.PwHash)
+		
 		if err != nil {
+			http.Error(w, "Invalid username", http.StatusUnauthorized)
+			return
+		} else if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(password)); err != nil {
+			http.Error(w, "Invalid password", http.StatusUnauthorized)
+
+			// sendErrorResponse(w, "Invalid username")
+
 			tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
 				"Error":    "Invalid username",
 				"Username": username,
@@ -343,6 +352,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 			http.Redirect(w, r, "/", http.StatusFound)
 		}
+
 	}
 }
 
@@ -770,6 +780,17 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables.")
+	}
+
+	// Get the PORT environment variable
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "5000" // Default if PORT is not set
+	}
+
 	r := mux.NewRouter()
 
 	store.Options = &sessions.Options{
@@ -792,6 +813,6 @@ func main() {
 	r.HandleFunc("/{username}/unfollow", unfollowUserHandler).Methods("GET")
 	r.HandleFunc("/add_message", addMessageHandler).Methods("POST")
 
-	log.Println("Server started on :5000")
-	log.Fatal(http.ListenAndServe(":5000", r))
+	log.Println("Server started on port:", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }

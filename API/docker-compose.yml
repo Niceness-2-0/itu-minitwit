@@ -5,7 +5,7 @@ services:
     build:
       context: .
     volumes:
-      - ./minitwit.db:/API/minitwit.db  # Mount SQLite database file into the container
+      - ./minitwit.db:/API/minitwit.db # Mount SQLite database file into the container
     ports:
       - "5001:5001"
     environment:
