@@ -2,12 +2,30 @@ version: '3.8'
 
 services:
   go-api:
+    image: ${DOCKER_USERNAME}/go-api
     build:
-      context: .
+      context: . #  Look for the Dockerfile in the current directory (.)
     volumes:
-      - ./minitwit.db:/go-project/minitwit.db  # Mount SQLite database file into the container
+      - ./minitwit.db:/go-project/minitwit.db # Mount SQLite database file into the container
     ports:
       - "5000:5000"
     environment:
       - DATABASE=/go-project/minitwit.db
     container_name: go-api
+    # depends_on:
+    #   - itusqlimage
+    # we can add a depends on tag and then have a separate logic for the DB image ??
+    # todo: not so sure about this, i think the database stuff from above can be moved 
+    # for a diferent image 
+    #     DATABASE = "./minitwit.db"
+    # USERNAME = 'simulator' - this actually i think can be also used in the github action file 
+    # in case we decide to have a different image for sql 
+    # itusqlimage:
+    #   image: ${DOCKER_USERNAME}/mysqlimage
+    #   container_name: minitwit_sql
+    #   networks:
+    #     - main
+    #   ports:
+    #     - '3306:3306'
+    #   environment:
+    #     - DATABASE=/go-project/minitwit.db
