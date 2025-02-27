@@ -1,0 +1,26 @@
+version: "3"
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile-api
+    volumes:
+      - ./db/minitwit.db:/db/minitwit.db
+    ports:
+      - "5001:5001"
+    environment:
+      - DATABASE=/db/minitwit.db
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile-web
+    volumes:
+      - ./db/minitwit.db:/db/minitwit.db
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE=/db/minitwit.db
+    restart: always
+
