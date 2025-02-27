@@ -1,0 +1,61 @@
+Vagrant.configure("2") do |config|
+    # Set a dummy box to satisfy Vagrant's requirement
+    config.vm.box = "digital_ocean"
+  
+    # DigitalOcean provider settings
+    config.vm.provider :digital_ocean do |do_config|
+      do_config.token = ENV['DIGITALOCEAN_ACCESS_TOKEN']
+      do_config.image = "ubuntu-22-04-x64"  # Ubuntu 22.04 image
+      do_config.region = "fra1"             # Change to your preferred region
+      do_config.size = "s-1vcpu-1gb"        # Change according to your needs
+  
+      # SSH Key for authentication
+      do_config.ssh_key_name = "my-vagrant-key"
+    end
+  
+    # Specify SSH private key path
+    config.ssh.private_key_path = "~/.ssh/id_rsa"
+  
+    config.vm.synced_folder ".", "/vagrant", disabled: true
+  
+  
+    # Provisioning the Droplet
+    config.vm.provision "shell", inline: <<-SHELL
+  
+      echo "pls help me stepbrother"
+  
+      # Ensure system is updated
+      apt-get update 
+      echo "pls help me dad"
+  
+  
+      
+      # Install dependencies
+      # Add Docker's official GPG key:
+      apt-get install ca-certificates curl
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+      chmod a+r /etc/apt/keyrings/docker.asc
+  
+      echo "pls help me mom"
+      # Add the repository to Apt sources:
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  
+      echo "pls help me sister"
+      apt-get install -y git make build-essential docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      echo "Docker installed successfully"
+      systemctl start docker
+      echo "Docker started successfully again maybe"
+      # Clone the repo if it doesn't exist
+      if [ ! -d "/home/ubuntu/app" ]; then
+        git clone https://github.com/Niceness-2-0/itu-minitwit.git /home/ubuntu/app
+      fi
+  
+      # Change to app directory
+      cd /home/ubuntu/app/go-project
+  
+      # Run Docker Compose to start the app
+      docker compose up -d
+    SHELL
+  end
+  
