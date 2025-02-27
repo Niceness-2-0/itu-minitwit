@@ -4,7 +4,7 @@
     {{ if .User }}
       {{ if .ProfileUser }}
         <div class="followstatus">
-          {{ if eq .User .ProfileUser.UserID }}
+          {{ if eq .User .ProfileUser.ID }}
             This is you!
           {{ else if .Followed }}
             You are currently following this user.
@@ -28,7 +28,7 @@
     <ul class="messages">
       {{ range .Messages }}
       <li>
-        <img src="https://www.gravatar.com/avatar/{{ .AuthorID }}?s=48">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed={{ .AuthorID }}&size=55">
         <div>
           <p><strong><a href="/{{ .Username }}">{{ .Username }}</a></strong> {{ .Text }}</p>
           <small>&mdash; {{ .PubDate }}</small>

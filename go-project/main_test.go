@@ -1,48 +1,21 @@
 package main
 
 import (
-	"bytes"
-	"database/sql"
-	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/gorilla/securecookie"
 )
 
-func setupTestDB() (*sql.DB, error) {
-	// Use an in-memory SQLite database for testing
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		return nil, err
-	}
+// Use the same secret key as your CookieStore
+var secretKey = []byte("development-key") // Replace with your actual secret
+var s = securecookie.New(secretKey, nil)
 
-	// Create tables (copy schema from minitwit.db)
-	schema := `
-	CREATE TABLE user (
-		user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT NOT NULL UNIQUE,
-		email TEXT NOT NULL,
-		pw_hash TEXT NOT NULL
-	);
-	CREATE TABLE message (
-		message_id INTEGER PRIMARY KEY AUTOINCREMENT,
-		author_id INTEGER NOT NULL,
-		text TEXT NOT NULL,
-		pub_date INTEGER NOT NULL,
-		flagged INTEGER DEFAULT 0
-	);
-	CREATE TABLE follower (
-		who_id INTEGER NOT NULL,
-		whom_id INTEGER NOT NULL
-	);
-	`
-	_, err = db.Exec(schema)
-	return db, err
-}
+/// OBS: If you want to use a test DB you have to inject the db as parameter in the handlers...
 
 // Helper function to perform HTTP requests
 func performRequest(req *http.Request, handlerFunc http.HandlerFunc) *httptest.ResponseRecorder {
@@ -53,19 +26,17 @@ func performRequest(req *http.Request, handlerFunc http.HandlerFunc) *httptest.R
 }
 
 // Helper function to register a user
-func registerUser(username, password, email string) *httptest.ResponseRecorder {
-	// Create JSON payload
-	payload := map[string]string{
-		"username":  username,
-		"password":  password,
-		"password2": password,
-		"email":     email,
-	}
-	jsonData, _ := json.Marshal(payload)
+func registerUser(username, password, password2, email string) *httptest.ResponseRecorder {
+	// Create form data
+	form := url.Values{}
+	form.Add("username", username)
+	form.Add("password", password)
+	form.Add("password2", password2)
+	form.Add("email", email)
 
-	// Create request with JSON body
-	req, _ := http.NewRequest("POST", "/register", bytes.NewBuffer(jsonData))
-	req.Header.Set("Content-Type", "application/json")
+	// Create request with form-encoded body
+	req, _ := http.NewRequest("POST", "/register", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Perform request and return response
 	return performRequest(req, registerHandler)
@@ -82,80 +53,124 @@ func loginUser(username, password string) *httptest.ResponseRecorder {
 	return performRequest(req, loginHandler)
 }
 
-func TestRegisterUser(t *testing.T) {
-	db, err := setupTestDB()
-	if err != nil {
-		t.Fatalf("Failed to set up test database: %v", err)
-	}
-	defer db.Close()
+// Helper function to logout a user
+func logoutUser() *httptest.ResponseRecorder {
+	req, _ := http.NewRequest("GET", "/logout", nil)
+	return performRequest(req, logoutHandler)
+}
 
+func TestRegisterUser(t *testing.T) {
 	// Test successful registration
-	resp := registerUser("user123", "password123", "user1@example.com")
-	if resp.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d. Response: %s", resp.Code, resp.Body.String())
+	resp := registerUser("user123", "password123", "password123", "user123@example.com")
+	if resp.Code != http.StatusFound {
+		t.Errorf("Expected status 302 and success message but got %d. Response: %s", resp.Code, resp.Body.String())
 	}
 
 	// Test duplicate username
-	resp = registerUser("user1", "password123", "user1@example.com")
-	if resp.Code != http.StatusBadRequest {
-		t.Errorf("Expected status 400 for duplicate username, got %d", resp.Code)
+	resp = registerUser("user123", "password123", "password123", "user123@example.com")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "The username is already taken") {
+		t.Errorf("Expected status 400 and duplicate username error but got %d. Response: %s", resp.Code, resp.Body.String())
 	}
 
 	// Test empty username
-	resp = registerUser("", "password123", "user2@example.com")
-	if resp.Code != http.StatusBadRequest {
-		t.Errorf("Expected status 400 for empty username, got %d", resp.Code)
+	resp = registerUser("", "password123", "password123", "user2@example.com")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a username") {
+		t.Errorf("Expected status 400 and empty username error but got %d. Response: %s", resp.Code, resp.Body.String())
+	}
+
+	// Test empty password
+	resp = registerUser("user_empty_pw", "", "", "user_empty_pw@example.com")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a password") {
+		t.Errorf("Expected status 400 and empty password error but got %d. Response: %s", resp.Code, resp.Body.String())
+	}
+
+	// Test mismatching passwords
+	resp = registerUser("user_pw_mismatch", "pass1", "pass2", "user_pw_mismatch@example.com")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "The two passwords do not match") {
+		t.Errorf("Expected status 400 and mismatched password error but got %d. Response: %s", resp.Code, resp.Body.String())
 	}
 
 	// Test invalid email
-	resp = registerUser("user3", "password123", "invalid-email")
-	if resp.Code != http.StatusBadRequest {
-		t.Errorf("Expected status 400 for invalid email, got %d", resp.Code)
+	resp = registerUser("user_invalid_email", "password123", "password123", "invalid-email")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a valid email address") {
+		t.Errorf("Expected status 400 and invalid email error but got %d. Response: %s", resp.Code, resp.Body.String())
 	}
+
 }
 
 func TestLoginUser(t *testing.T) {
-	db, err := setupTestDB()
-	if err != nil {
-		t.Fatalf("Failed to set up test database: %v", err)
-	}
-	defer db.Close()
-
 	// Register a user first
-	registerUser("testuser", "password123", "testuser@example.com")
+	registerUser("testuser", "password123", "password123", "testuser@example.com")
 
 	// Test successful login
 	resp := loginUser("testuser", "password123")
-	if resp.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.Code)
+	if resp.Code != http.StatusFound {
+		t.Errorf("Expected status 302 (Redirect), got %d", resp.Code)
+	}
+
+	// Test empty username
+	resp = loginUser("", "password123")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a username") {
+		t.Errorf("Expected status 400 and 'You have to enter a username' message but got %d. Response: %s", resp.Code, resp.Body.String())
+	}
+
+	// Test empty password
+	resp = loginUser("testuser", "")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a password") {
+		t.Errorf("Expected status 400 and 'You have to enter a password' message but got %d. Response: %s", resp.Code, resp.Body.String())
 	}
 
 	// Test incorrect password
 	resp = loginUser("testuser", "wrongpassword")
-	if resp.Code != http.StatusUnauthorized {
-		t.Errorf("Expected status 401 for wrong password, got %d", resp.Code)
+	if resp.Code != http.StatusUnauthorized || !strings.Contains(resp.Body.String(), "Invalid password") {
+		t.Errorf("Expected status 401 for wrong password and 'Invalid password' message but got %d. Response %s", resp.Code, resp.Body.String())
 	}
 
-	// Test non-existent user
-	resp = loginUser("nonexistent", "password123")
-	if resp.Code != http.StatusUnauthorized {
-		t.Errorf("Expected status 401 for non-existent user, got %d", resp.Code)
+	// Test logout redirection to /
+	resp = logoutUser()
+	if resp.Code != http.StatusFound {
+		t.Errorf("Expected status 302 (Redirect), got %d", resp.Code)
 	}
 }
 
 func TestAddMessage(t *testing.T) {
-	db, err := setupTestDB()
-	if err != nil {
-		t.Fatalf("Failed to set up test database: %v", err)
-	}
-	defer db.Close()
-
 	// Register and log in a user
-	registerUser("poster", "password123", "poster@example.com")
+	registerUser("poster", "password123", "password123", "poster@example.com")
 	loginResp := loginUser("poster", "password123")
 
-	// Extract session cookie
-	sessionCookie := loginResp.Result().Cookies()
+	/*
+		In a real browser, the browser automatically sends the session cookie with every subsequent request to the server after login.
+		But in this case, in the test environment, we are manually creating requests, which means we must manually attach the session cookie
+		to mimic browser behavior.
+
+		Since using a CookieStore, the information about the client's session is all stored in a cookie on the client side and sent
+		to the server each time.
+		E.g. The client sens the cookie session and the server checks that the `authenticated=true` and
+		gives permission to the client to add a message.
+	*/
+
+	// Print all cookies from the login response
+	cookies := loginResp.Result().Cookies()
+	log.Printf("Number of cookies set by the server: %d", len(cookies))
+
+	// Get the cookie from the login response (including all session data for the logged in user)
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		// Decode the cookie (from the session ID extract the fields of the session set by the server)
+		sessionData := make(map[interface{}]interface{})
+		err := s.Decode("session-cookie", cookie.Value, &sessionData)
+		if err != nil {
+			t.Fatalf("Failed to decode session cookie: %v", err)
+		}
+		t.Logf("Decoded Session Data: %+v", sessionData)
+		if cookie.Name == "session-cookie" {
+			sessionCookie = cookie
+			break
+		}
+	}
+	if sessionCookie == nil {
+		log.Fatal("Session cookie not found!")
+	}
 
 	// Send message request
 	form := url.Values{}
@@ -164,21 +179,12 @@ func TestAddMessage(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/add_message", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	// Attach session cookie
-	for _, cookie := range sessionCookie {
-		req.AddCookie(cookie)
-	}
+	// Attach session cookie so the server recognizes the logged-in user
+	req.AddCookie(sessionCookie)
 
 	resp := performRequest(req, addMessageHandler)
 
-	if resp.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.Code)
-	}
-
-	// Check response message
-	var jsonResponse map[string]string
-	json.NewDecoder(resp.Body).Decode(&jsonResponse)
-	if jsonResponse["message"] != "Your message was recorded" {
-		t.Errorf("Expected confirmation message, got: %s", jsonResponse["message"])
+	if resp.Code != http.StatusFound {
+		t.Errorf("Expected status 302, got %d. Response body: %s", resp.Code, resp.Body.String())
 	}
 }
