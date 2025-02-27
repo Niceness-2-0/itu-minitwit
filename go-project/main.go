@@ -19,7 +19,7 @@ import (
 
 // Configurations
 const (
-	DATABASE = "./minitwit.db"
+	DATABASE = "../db/minitwit.db"
 	PER_PAGE = 30 // Number of messages per page
 	SECRET   = "development-key"
 )
