@@ -218,8 +218,8 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "User not found", http.StatusNotFound)
 			} else {
 				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
 			}
+			return
 		}
 
 		// Query messages
@@ -266,8 +266,8 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "User not found", http.StatusNotFound)
 			} else {
 				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
 			}
+			return
 		}
 
 		// Insert message into DB
@@ -326,8 +326,8 @@ func follow(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "User not found", http.StatusNotFound)
 				} else {
 					http.Error(w, "Database error", http.StatusInternalServerError)
-					return
 				}
+				return
 			}
 
 			// Follow the user
@@ -348,8 +348,8 @@ func follow(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "User not found", http.StatusNotFound)
 				} else {
 					http.Error(w, "Database error", http.StatusInternalServerError)
-					return
 				}
+				return
 			}
 
 			// Unfollow the user
