@@ -24,3 +24,18 @@ services:
       - DATABASE=/db/minitwit.db
     restart: always
 
+  api_new:
+    build:
+      context: .
+      dockerfile: Dockerfile-api
+    volumes:
+      - sqlite_database:/db
+    ports:
+      - "5002:5001"
+    environment:
+      - DATABASE=/db/minitwit.db
+    restart: always
+
+volumes:
+  sqlite_database:
+
