@@ -23,7 +23,7 @@ type User struct {
 	ID       uint   `gorm:"primaryKey"`
 	Username string `gorm:"uniqueIndex"`
 	Email    string
-	Password string
+	PwHash   string `json:"pw_hash"`
 }
 
 // Message represents a message with user from the database
@@ -419,7 +419,53 @@ func updateLatest(r *http.Request) {
 	}
 }
 
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+        return
+    }
+
+    var creds struct {
+        Username string `json:"username"`
+        Password string `json:"password"`
+    }
+    
+    if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    db, err := connectDB()
+    if err != nil {
+        http.Error(w, "Database connection error", http.StatusInternalServerError)
+        return
+    }
+    defer db.Close()
+
+    var user User
+    err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", creds.Username).Scan(&user.ID, &user.Username, &user.PwHash)
+    if err != nil {
+        http.Error(w, "Invalid username", http.StatusUnauthorized)
+        return
+    }
+
+    if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
+        http.Error(w, "Invalid password", http.StatusUnauthorized)
+        return
+    }
+
+    response := map[string]string{
+        "user_id":  fmt.Sprintf("%d", user.ID),
+        "username": user.Username,
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+
 func registerHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Register handler")
 	updateLatest(r)
 
 	if r.Method != http.MethodPost {
@@ -492,6 +538,7 @@ func main() {
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
 	r.HandleFunc("/latest", getLatest).Methods("GET")
 	r.HandleFunc("/msgs", getMessages).Methods("GET")
+	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
 	r.HandleFunc("/msgs/{username}", messagesPerUser).Methods("GET", "POST")
 	r.HandleFunc("/fllws/{username}", follow).Methods("GET", "POST")
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -211,6 +213,8 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
+	
+
 	var messages []Message
 
 	// Loop through results and append to messages slice
@@ -354,6 +358,157 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
+}
+
+func loginFrontendHandler(w http.ResponseWriter, r *http.Request) {
+    log.Println("loginHandler called")
+    tmpl, err := template.ParseFiles("templates/layout.html", "templates/login.html")
+    if err != nil {
+        http.Error(w, "Template parsing error", http.StatusInternalServerError)
+        return
+    }
+
+    session, err := store.Get(r, "session-cookie")
+    if err != nil {
+        http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+        return
+    }
+
+    if r.Method == http.MethodGet {
+        flashes := session.Flashes()
+        session.Save(r, w)
+        tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+            "Error":    "",
+            "Username": "",
+            "Flashes":  flashes,
+        })
+        return
+    }
+
+    if r.Method == http.MethodPost {
+        username := r.FormValue("username")
+        password := r.FormValue("password")
+
+        if username == "" || password == "" {
+            w.WriteHeader(http.StatusBadRequest)
+            tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+                "Error":    "Username and password are required",
+                "Username": username,
+            })
+            return
+        }
+
+        // Send login request to backend
+        payload := map[string]string{"username": username, "password": password}
+        jsonPayload, _ := json.Marshal(payload)
+        resp, err := http.Post("http://localhost:5001/login", "application/json", bytes.NewBuffer(jsonPayload))
+        if err != nil {
+            http.Error(w, "Failed to communicate with backend", http.StatusInternalServerError)
+            return
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode != http.StatusOK {
+            var respData map[string]string
+            json.NewDecoder(resp.Body).Decode(&respData)
+            tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+                "Error":    respData["error"],
+                "Username": username,
+            })
+            return
+        }
+
+        var respData map[string]string
+        json.NewDecoder(resp.Body).Decode(&respData)
+
+        session.Values["authenticated"] = true
+        session.Values["user_id"] = respData["user_id"]
+        session.Values["username"] = respData["username"]
+        session.AddFlash("You were logged in")
+        session.Save(r, w)
+
+        http.Redirect(w, r, "/", http.StatusFound)
+    }
+}
+
+func registerFrontendHandler(w http.ResponseWriter, r *http.Request) {
+    log.Println("registerHandler called")
+    tmpl, err := template.ParseFiles("templates/layout.html", "templates/register.html")
+    if err != nil {
+        http.Error(w, "Template parsing error", http.StatusInternalServerError)
+        return
+    }
+
+    session, err := store.Get(r, "session-cookie")
+    if err != nil {
+        http.Error(w, "Unable to retrieve session", http.StatusInternalServerError)
+        return
+    }
+
+    if r.Method == http.MethodGet {
+        w.Header().Set("Content-Type", "text/html")
+        err = tmpl.ExecuteTemplate(w, "layout.html", nil)
+        if err != nil {
+            http.Error(w, "Template rendering error", http.StatusInternalServerError)
+            return
+        }
+        return
+    }
+
+    if r.Method == http.MethodPost {
+        username := r.FormValue("username")
+        email := r.FormValue("email")
+        password := r.FormValue("password")
+        password2 := r.FormValue("password2")
+
+        if username == "" || email == "" || password == "" || password != password2 {
+            w.WriteHeader(http.StatusBadRequest)
+            tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+                "Error":    "Invalid input, please check your details.",
+                "Username": username,
+                "Email":    email,
+            })
+            return
+        }
+
+        // Send registration request to backend
+        payload := map[string]string{
+            "username": username,
+            "email":    email,
+            "pwd":      password,
+        }
+        jsonPayload, _ := json.Marshal(payload)
+		req, err := http.NewRequest("POST", "http://localhost:5001/register", bytes.NewBuffer(jsonPayload))
+		if err != nil {
+			http.Error(w, "Failed to create request", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+        if err != nil {
+            http.Error(w, "Failed to communicate with backend", http.StatusInternalServerError)
+            return
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode != http.StatusNoContent {
+            var respData map[string]string
+            json.NewDecoder(resp.Body).Decode(&respData)
+            tmpl.ExecuteTemplate(w, "layout.html", map[string]interface{}{
+                "Error":    respData["error_msg"],
+                "Username": username,
+                "Email":    email,
+            })
+            return
+        }
+
+        session.AddFlash("You were successfully registered and can login now")
+        session.Save(r, w)
+
+        http.Redirect(w, r, "/login", http.StatusFound)
+    }
 }
 
 /*
@@ -804,8 +959,8 @@ func main() {
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
-	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
-	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
+	r.HandleFunc("/login", loginFrontendHandler).Methods("POST", "GET")
+	r.HandleFunc("/register", registerFrontendHandler).Methods("POST", "GET")
 	r.HandleFunc("/logout", logoutHandler).Methods("GET")
 	r.HandleFunc("/", timelineHandler).Methods("GET")
 	r.HandleFunc("/{username}", userTimelineHandler).Methods("GET")
