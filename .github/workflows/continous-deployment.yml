@@ -6,7 +6,7 @@
         # Run workflow every time something is pushed to the main branch
         branches:
           - main
-          - deployment
+          #- deployment
       # allow manual triggers for now too
       workflow_dispatch:
         manual: true
@@ -64,20 +64,20 @@
           #  env:
           #    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     
-          - name: Configure SSH
-            run: |
-              mkdir -p ~/.ssh/
-              echo "$SSH_KEY" > ~/.ssh/id_ed25519
-              chmod 600 ~/.ssh/id_ed25519
-            env:
-              SSH_KEY: ${{ secrets.SSH_KEY }}
-    
-          - name: Deploy to server
-            # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
-            run: >
-              ssh $SSH_USER@$SSH_HOST
-              -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
-              '/minitwit/deploy.sh'
-            env:
-              SSH_USER: ${{ secrets.SSH_USER }}
-              SSH_HOST: ${{ secrets.SSH_HOST }}
+          #- name: Configure SSH
+          #  run: |
+          #    mkdir -p ~/.ssh/
+          #    echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          #    chmod 600 ~/.ssh/id_ed25519
+          #  env:
+          #    SSH_KEY: ${{ secrets.SSH_KEY }}
+          
+          #- name: Deploy to server
+          #  # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
+          #  run: >
+          #    ssh $SSH_USER@$SSH_HOST
+          #    -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+          #    '/minitwit/deploy.sh'
+          #  env:
+          #    SSH_USER: ${{ secrets.SSH_USER }}
+          #    SSH_HOST: ${{ secrets.SSH_HOST }}
