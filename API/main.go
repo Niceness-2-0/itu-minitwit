@@ -103,7 +103,7 @@ func getUserID(db *sql.DB, username string) (int, error) {
 	err := db.QueryRow("SELECT user_id FROM user WHERE username = ?", username).Scan(&userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return 0, nil // User not found
+			return 0, err // User not found
 		}
 		return 0, err
 	}
@@ -218,8 +218,8 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "User not found", http.StatusNotFound)
 			} else {
 				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
 			}
+			return
 		}
 
 		// Query messages
@@ -266,8 +266,8 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "User not found", http.StatusNotFound)
 			} else {
 				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
 			}
+			return
 		}
 
 		// Insert message into DB
@@ -303,8 +303,8 @@ func follow(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "User not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Database error", http.StatusInternalServerError)
-			return
 		}
+		return
 	}
 
 	if r.Method == http.MethodPost {
@@ -326,8 +326,8 @@ func follow(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "User not found", http.StatusNotFound)
 				} else {
 					http.Error(w, "Database error", http.StatusInternalServerError)
-					return
 				}
+				return
 			}
 
 			// Follow the user
@@ -348,8 +348,8 @@ func follow(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "User not found", http.StatusNotFound)
 				} else {
 					http.Error(w, "Database error", http.StatusInternalServerError)
-					return
 				}
+				return
 			}
 
 			// Unfollow the user
@@ -484,6 +484,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// TODO Init DB should be removed
 	initDB()
 	r := mux.NewRouter()
 	r.Use(dbMiddleware) // Apply the middleware
