@@ -5,11 +5,9 @@ services:
       context: .
       dockerfile: Dockerfile-api
     volumes:
-      - ./db/minitwit.db:/db/minitwit.db
+       - sqlite_database:/db
     ports:
       - "5001:5001"
-    environment:
-      - DATABASE=/db/minitwit.db
     restart: always
 
   web:
@@ -23,4 +21,5 @@ services:
     environment:
       - DATABASE=/db/minitwit.db
     restart: always
-
+volumes:
+  sqlite_database:
