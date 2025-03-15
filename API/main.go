@@ -37,9 +37,6 @@ type Message struct {
 
 const DATABASE = "../db/minitwit.db"
 
-var message_sequence = false
-var user_sequence = false
-
 var (
 	host     string
 	port     int
@@ -74,101 +71,57 @@ func connectDB() (*sql.DB, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
 		host, port, user, password, dbname)
 
-	// Open the database connection
-	dbPostgre, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer dbPostgre.Close()
-
-	// Ensure the database is reachable
-	if err := dbPostgre.Ping(); err != nil {
-		log.Fatal("Could not connect to the postgre database:", err)
-	}
-	fmt.Println("Successfully connected to the postgre database")
-
-	dbSqlite, err := sql.Open("sqlite3", DATABASE)
+	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, err
 	}
-	if err = dbSqlite.Ping(); err != nil {
-		dbSqlite.Close()
+	if err = db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
-	return dbSqlite, nil
-}
-
-func initDB() error {
-	// Read the schema file using os.ReadFile
-	schema, err := os.ReadFile("../schema.sql")
-	if err != nil {
-		return err // Return an error if the file can't be read
-	}
-
-	// Execute the schema script
-	db, err := connectDB()
-	if err == nil {
-		_, err = db.Exec(string(schema))
-	}
-	if err != nil {
-		return err // Return an error if the execution fails
-	}
-	db.Close()
-
-	return nil
+	return db, nil
 }
 
 // Middleware to manage database connection per request
 func dbMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Create the connection string
+		psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
+			host, port, user, password, dbname)
+
 		// Open a new database connection
-		dbSqlite, err := sql.Open("sqlite3", DATABASE)
+		db, err := sql.Open("postgres", psqlInfo)
 		if err != nil {
 			fmt.Println(err.Error())
 			http.Error(w, "Database connection error", http.StatusInternalServerError)
 			return
 		}
-		defer dbSqlite.Close() // Close the connection after handling request
-
-		// Create the connection string
-		psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
-			host, port, user, password, dbname)
-
-		// Open the database connection
-		dbPostgre, err := sql.Open("postgres", psqlInfo)
-		if err != nil {
-			log.Fatal(err)
-			writeFile(err.Error())
-		}
-		defer dbPostgre.Close()
+		defer db.Close() // Close the connection after handling request
 
 		// Ensure the database is reachable
-		if err := dbPostgre.Ping(); err != nil {
+		if err := db.Ping(); err != nil {
 			log.Fatal("Could not connect to the postgre database:", err)
 		}
-
 		// Store db in context for handlers
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, "dbPostgre", dbPostgre)
-		ctx = context.WithValue(ctx, "dbSqlite", dbSqlite)
+		ctx = context.WithValue(ctx, "db", db)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // Retrieve DB connection from request context
-func getDBFromContext(r *http.Request) (*sql.DB, *sql.DB, error) {
-	dbSqlite, ok1 := r.Context().Value("dbSqlite").(*sql.DB)
-	dbPostgre, ok2 := r.Context().Value("dbPostgre").(*sql.DB)
-	if !ok1 || !ok2 {
-		return nil, nil, os.ErrInvalid
+func getDBFromContext(r *http.Request) (*sql.DB, error) {
+	db, ok := r.Context().Value("db").(*sql.DB)
+	if !ok {
+		return nil, os.ErrInvalid
 	}
-	return dbSqlite, dbPostgre, nil
+	return db, nil
 }
 
 // getUserID fetches the user ID given a username
 func getUserID(db *sql.DB, username string) (int, error) {
 	var userID int
-	err := db.QueryRow("SELECT user_id FROM user WHERE username = ?", username).Scan(&userID)
+	err := db.QueryRow(`SELECT user_id FROM "user" WHERE username = $1`, username).Scan(&userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0, err // User not found
@@ -228,16 +181,16 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dbSqlite, _, err := getDBFromContext(r)
+	db, err := getDBFromContext(r)
 	// Query messages
-	query := `SELECT message.text, message.pub_date, user.username 
+	query := `SELECT message.text, message.pub_date, "user".username 
 	FROM message 
-	JOIN user ON message.author_id = user.user_id 
+	JOIN "user" ON message.author_id = "user".user_id 
 	WHERE message.flagged = 0 
 	ORDER BY message.pub_date DESC 
-	LIMIT ?`
+	LIMIT $1`
 
-	rows, err := dbSqlite.Query(query, noMsgs)
+	rows, err := db.Query(query, noMsgs)
 	if err != nil {
 		http.Error(w, "Database query error", http.StatusInternalServerError)
 		return
@@ -276,11 +229,11 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dbSqlite, dbPostgre, _ := getDBFromContext(r)
+	db, _ := getDBFromContext(r)
 	if r.Method == http.MethodGet {
 
 		// Get user ID
-		userID, err := getUserID(dbSqlite, username)
+		userID, err := getUserID(db, username)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "User not found", http.StatusNotFound)
@@ -291,14 +244,14 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Query messages
-		query := `SELECT message.text, message.pub_date, user.username 
+		query := `SELECT message.text, message.pub_date, "user".username 
 			FROM message 
-			JOIN user ON message.author_id = user.user_id 
-			WHERE message.flagged = 0 AND user.user_id = ? 
+			JOIN "user" ON message.author_id = "user".user_id 
+			WHERE message.flagged = 0 AND "user".user_id = $1 
 			ORDER BY message.pub_date DESC 
-			LIMIT ?`
+			LIMIT $2`
 
-		rows, err := dbSqlite.Query(query, userID, noMsgs)
+		rows, err := db.Query(query, userID, noMsgs)
 		if err != nil {
 			http.Error(w, "Database query error", http.StatusInternalServerError)
 			return
@@ -328,7 +281,7 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Get user ID
-		userID, err := getUserID(dbSqlite, username)
+		userID, err := getUserID(db, username)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "User not found", http.StatusNotFound)
@@ -340,31 +293,12 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 
 		// Insert message into DB
 		query := `INSERT INTO message (author_id, text, pub_date, flagged)
-				  VALUES (?, ?, ?, 0)`
-		result, err := dbSqlite.Exec(query, userID, requestData.Content, time.Now().Unix())
+				  VALUES ($1, $2, $3, 0)`
+
+		_, err = db.Exec(query, userID, requestData.Content, time.Now().Unix())
 		if err != nil {
 			http.Error(w, "Database insert error", http.StatusInternalServerError)
 			return
-		}
-		if !message_sequence {
-			lastInsertID, err := result.LastInsertId()
-			if err != nil {
-				writeFile(err.Error())
-			}
-			messageID := int(lastInsertID)
-			query = `SELECT setval('test.message_message_id_seq', $1, false);`
-			_, err = dbPostgre.Exec(query, messageID)
-			if err != nil {
-				writeFile(err.Error())
-			}
-			message_sequence = true
-		}
-		query = `INSERT INTO test.message (author_id, text, pub_date, flagged)
-				  VALUES ($1, $2, $3, 0)`
-		_, err = dbPostgre.Exec(query, userID, requestData.Content, time.Now().Unix())
-
-		if err != nil {
-			writeFile(err.Error())
 		}
 
 		w.WriteHeader(http.StatusNoContent)
@@ -381,10 +315,10 @@ func follow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbSqlite, dbPostgre, _ := getDBFromContext(r)
+	db, _ := getDBFromContext(r)
 
 	// Get user ID
-	userID, err := getUserID(dbSqlite, username)
+	userID, err := getUserID(db, username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "User not found", http.StatusNotFound)
@@ -407,7 +341,7 @@ func follow(w http.ResponseWriter, r *http.Request) {
 
 		if requestData.FollowUsername != "" {
 			// Get user ID
-			followsUserID, err := getUserID(dbSqlite, requestData.FollowUsername)
+			followsUserID, err := getUserID(db, requestData.FollowUsername)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					http.Error(w, "User not found", http.StatusNotFound)
@@ -418,23 +352,18 @@ func follow(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Follow the user
-			query := `INSERT INTO follower (who_id, whom_id) VALUES (?, ?)`
-			_, err = dbSqlite.Exec(query, userID, followsUserID)
+			query := `INSERT INTO follower (who_id, whom_id) VALUES ($1, $2)`
+			_, err = db.Exec(query, userID, followsUserID)
 			if err != nil {
 				http.Error(w, "Database insert error", http.StatusInternalServerError)
 				return
-			}
-			query = `INSERT INTO test.follower (who_id, whom_id) VALUES ($1, $2)`
-			_, err = dbPostgre.Exec(query, userID, followsUserID)
-			if err != nil {
-				writeFile(err.Error())
 			}
 
 			// Send JSON response
 			w.WriteHeader(http.StatusNoContent)
 		} else if requestData.UnFollowUsername != "" {
 			// Get user ID
-			unfollowUserID, err := getUserID(dbSqlite, requestData.UnFollowUsername)
+			unfollowUserID, err := getUserID(db, requestData.UnFollowUsername)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					http.Error(w, "User not found", http.StatusNotFound)
@@ -445,16 +374,11 @@ func follow(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Unfollow the user
-			query := `DELETE FROM follower WHERE who_id = ? AND whom_id = ?`
-			_, err = dbSqlite.Exec(query, userID, unfollowUserID)
+			query := `DELETE FROM follower WHERE who_id = $1 AND whom_id = $2`
+			_, err = db.Exec(query, userID, unfollowUserID)
 			if err != nil {
 				http.Error(w, "Database insert error", http.StatusInternalServerError)
 				return
-			}
-			query = `DELETE FROM test.follower WHERE who_id = $1 AND whom_id = $2`
-			_, err = dbPostgre.Exec(query, userID, unfollowUserID)
-			if err != nil {
-				writeFile(err.Error())
 			}
 
 			w.WriteHeader(http.StatusNoContent)
@@ -468,11 +392,11 @@ func follow(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Query followers
-		query := `SELECT user.username FROM user
-					INNER JOIN follower ON follower.whom_id=user.user_id
-					WHERE follower.who_id=?
-					LIMIT ?`
-		rows, err := dbSqlite.Query(query, userID, noFollowers)
+		query := `SELECT "user".username FROM "user"
+					INNER JOIN follower ON follower.whom_id="user".user_id
+					WHERE follower.who_id= $1
+					LIMIT $2`
+		rows, err := db.Query(query, userID, noFollowers)
 		if err != nil {
 			http.Error(w, "Database query error", http.StatusInternalServerError)
 			return
@@ -516,19 +440,6 @@ func updateLatest(r *http.Request) {
 	}
 }
 
-func writeFile(str string) {
-	f, err := os.OpenFile("errors.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(str + "\n") // Appends instead of overwriting
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
 
@@ -562,11 +473,11 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbSqlite, dbPostgre, err := getDBFromContext(r)
+	db, err := getDBFromContext(r)
 
 	// Check if username exists
 	var exists bool
-	err = dbSqlite.QueryRow("SELECT EXISTS(SELECT 1 FROM user WHERE username = ?)", requestData.Username).Scan(&exists)
+	err = db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "user" WHERE username = $1)`, requestData.Username).Scan(&exists)
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
 		return
@@ -584,30 +495,10 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert user
-	result, err := dbSqlite.Exec("INSERT INTO user (username, email, pw_hash) VALUES (?, ?, ?)", requestData.Username, requestData.Email, string(hashedPassword))
+	_, err = db.Exec(`INSERT INTO "user" (username, email, pw_hash) VALUES ($1, $2, $3)`, requestData.Username, requestData.Email, string(hashedPassword))
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
 		return
-	}
-
-	if !user_sequence {
-		lastInsertID, err := result.LastInsertId()
-		if err != nil {
-			writeFile(err.Error())
-		}
-		user_id := int(lastInsertID)
-		fmt.Println("user_id", user_id)
-		query := `select SETVAL('test.user_user_id_seq', $1, false);`
-		fmt.Println("query", query)
-		_, err = dbPostgre.Exec(query, user_id)
-		if err != nil {
-			writeFile(err.Error())
-		}
-		user_sequence = true
-	}
-	_, err = dbPostgre.Exec("INSERT INTO test.user (username, email, pw_hash) VALUES ($1, $2, $3)", requestData.Username, requestData.Email, string(hashedPassword))
-	if err != nil {
-		writeFile(err.Error())
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -615,7 +506,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	// TODO Init DB should be removed
-	initDB()
 	r := mux.NewRouter()
 	r.Use(dbMiddleware) // Apply the middleware
 
