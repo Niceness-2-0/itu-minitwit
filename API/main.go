@@ -133,7 +133,7 @@ func getUserID(db *sql.DB, username string) (int, error) {
 
 // getLatest reads the latest processed command ID from a file and returns it as JSON
 func getLatest(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile("latest_processed_sim_action_id.txt")
+	data, err := os.ReadFile("../db/latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
 		fmt.Errorf("Error reading latest ID file:", err)
@@ -434,7 +434,7 @@ func updateLatest(r *http.Request) {
 		return
 	}
 
-	err = os.WriteFile("latest_processed_sim_action_id.txt", []byte(strconv.Itoa(parsedCommandID)), 0644)
+	err = os.WriteFile("../db/latest_processed_sim_action_id.txt", []byte(strconv.Itoa(parsedCommandID)), 0644)
 	if err != nil {
 		fmt.Println("Error writing latest ID:", err)
 	}
