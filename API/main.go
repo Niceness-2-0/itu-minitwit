@@ -114,7 +114,6 @@ func getLatest(w http.ResponseWriter, r *http.Request) {
 // notReqFromSimulator checks if the request is authorized
 func notReqFromSimulator(w http.ResponseWriter, r *http.Request) bool {
 	fromSimulator := r.Header.Get("Authorization")
-	// fmt.Printf("Authorization header value: %s", fromSimulator)
 
 	// Expected authorization header value
 	expectedAuth := "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh"
@@ -227,10 +226,6 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	username := vars["username"]
 
-	if !notReqFromSimulator(w, r) {
-		return
-	}
-
 	noMsgs := 100 // Default 100 messages
 	if noMsgsStr := r.URL.Query().Get("no"); noMsgsStr != "" {
 		if num, err := strconv.Atoi(noMsgsStr); err == nil {
@@ -281,6 +276,10 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(messages)
 
 	} else if r.Method == http.MethodPost {
+		if !notReqFromSimulator(w, r) {
+			return
+		}
+
 		// Decode request body
 		var requestData struct {
 			Content string `json:"content"`

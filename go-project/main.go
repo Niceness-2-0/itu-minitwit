@@ -75,21 +75,8 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// rows, err := db.Query(`
-	//     SELECT message.message_id, message.author_id, user.username, message.text, message.pub_date
-	//     FROM message
-	//     JOIN user ON message.author_id = user.user_id
-	//     WHERE message.flagged = 0 AND (user.user_id = ? OR user.user_id IN (SELECT whom_id FROM follower WHERE who_id = ?))
-	//     ORDER BY message.pub_date DESC
-	//     LIMIT ? OFFSET ?`, session.Values["user_id"], session.Values["user_id"], PER_PAGE, offset)
-	// if err != nil {
-	// 	http.Error(w, "Database query error", http.StatusInternalServerError)
-	// 	return
-	// }
-	// defer rows.Close()
-
-	// Send GET request to API's /timeline/{userID} endpoint
-	resp, err := http.Get(fmt.Sprintf("%s/timeline/%s", API_BASE_URL, userID))
+	// Send GET request to API's /following/{userID} endpoint
+	resp, err := http.Get(fmt.Sprintf("%s/following/%s", API_BASE_URL, userID))
 	if err != nil {
 		http.Error(w, "Error fetching data from API", http.StatusInternalServerError)
 		return
@@ -439,23 +426,13 @@ Shows a user's profile, displays their tweets.
 Endpoint - /{username}
 */
 func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("userTimelineHandler called")
+	log.Printf("userTimelineHandler called with path: %s", r.URL.Path)
+
 	vars := mux.Vars(r)
 	profileUsername := vars["username"]
 
 	// Send GET request to API's /msgs/{username} endpoint with the Authorization header
-	url := fmt.Sprintf("%s/msgs/%s", API_BASE_URL, profileUsername)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		http.Error(w, "Failed to create request", http.StatusInternalServerError)
-		return
-	}
-
-	// Add Authorization header
-	req.Header.Set("Authorization", "Bearer c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.Get(fmt.Sprintf("%s/msgs/%s", API_BASE_URL, profileUsername))
 	if err != nil {
 		http.Error(w, "Error fetching data from API", http.StatusInternalServerError)
 		return
@@ -501,7 +478,7 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req.Header.Set("Authorization", "Bearer c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+		req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
 
 		// Send request using http.Client
 		client := &http.Client{}
@@ -609,7 +586,7 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Bearer c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -631,12 +608,12 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set flash message (as in the Flask version)
-	flashMessage := fmt.Sprintf("You are now following \"%s\"", username)
+	flashMessage := fmt.Sprintf("You are now following \"%s\"", profileUsername)
 	session.AddFlash(flashMessage)
 	session.Save(r, w)
 
 	// Redirect to user timeline
-	http.Redirect(w, r, "/"+username, http.StatusSeeOther)
+	http.Redirect(w, r, "/"+profileUsername, http.StatusSeeOther)
 }
 
 /*
@@ -682,7 +659,7 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Bearer c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -703,12 +680,12 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flashMessage := fmt.Sprintf("You are no longer following \"%s\"", username)
+	flashMessage := fmt.Sprintf("You are no longer following \"%s\"", profileUsername)
 	session.AddFlash(flashMessage)
 	session.Save(r, w)
 
 	// Redirect to user timeline
-	http.Redirect(w, r, "/"+username, http.StatusSeeOther)
+	http.Redirect(w, r, "/"+profileUsername, http.StatusSeeOther)
 }
 
 /*
@@ -759,7 +736,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Bearer c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
