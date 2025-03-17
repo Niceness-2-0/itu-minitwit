@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -35,10 +37,40 @@ type Message struct {
 
 const DATABASE = "../db/minitwit.db"
 
+var (
+	host     string
+	port     int
+	user     string
+	password string
+	dbname   string
+	schema   string
+)
+
+// The init() function is a special function in Go that is automatically called before main()
+func init() {
+	// Load environment variables from .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Set the schema name from the environment variable
+	schema = os.Getenv("SCHEMA_NAME")
+	host = os.Getenv("DB_HOST")
+	port, _ = strconv.Atoi(os.Getenv("DB_PORT"))
+	user = os.Getenv("DB_USER")
+	password = os.Getenv("DB_PASSWORD")
+	dbname = os.Getenv("DB_NAME")
+}
+
 // connectDB initializes and returns a database connection
 func connectDB() (*sql.DB, error) {
-	// TODO Use db as a global variable.
-	db, err := sql.Open("sqlite3", DATABASE)
+
+	// Create the connection string
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
+		host, port, user, password, dbname)
+
+	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +85,12 @@ func connectDB() (*sql.DB, error) {
 func dbMiddleware(next http.Handler) http.Handler {
 	log.Println("dbMiddleware was called...")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Create the connection string
+		psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
+			host, port, user, password, dbname)
+
 		// Open a new database connection
-		db, err := sql.Open("sqlite3", DATABASE)
+		db, err := sql.Open("postgres", psqlInfo)
 		if err != nil {
 			fmt.Println(err.Error())
 			http.Error(w, "Database connection error", http.StatusInternalServerError)
@@ -62,6 +98,10 @@ func dbMiddleware(next http.Handler) http.Handler {
 		}
 		defer db.Close() // Close the connection after handling request
 
+		// Ensure the database is reachable
+		if err := db.Ping(); err != nil {
+			log.Fatal("Could not connect to the postgre database:", err)
+		}
 		// Store db in context for handlers
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, "db", db)
@@ -81,7 +121,7 @@ func getDBFromContext(r *http.Request) (*sql.DB, error) {
 // getUserID fetches the user ID given a username
 func getUserID(db *sql.DB, username string) (int, error) {
 	var userID int
-	err := db.QueryRow("SELECT user_id FROM user WHERE username = ?", username).Scan(&userID)
+	err := db.QueryRow(`SELECT user_id FROM "user" WHERE username = $1`, username).Scan(&userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0, err // User not found
@@ -93,7 +133,7 @@ func getUserID(db *sql.DB, username string) (int, error) {
 
 // getLatest reads the latest processed command ID from a file and returns it as JSON
 func getLatest(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile("latest_processed_sim_action_id.txt")
+	data, err := os.ReadFile("../db/latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
 		log.Println(fmt.Errorf("Error reading latest ID file: %w", err))
@@ -140,12 +180,12 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := getDBFromContext(r)
 	// Query messages
-	query := `SELECT message.text, message.pub_date, user.username 
+	query := `SELECT message.text, message.pub_date, "user".username 
 	FROM message 
-	JOIN user ON message.author_id = user.user_id 
+	JOIN "user" ON message.author_id = "user".user_id 
 	WHERE message.flagged = 0 
 	ORDER BY message.pub_date DESC 
-	LIMIT ?`
+	LIMIT $1`
 
 	rows, err := db.Query(query, noMsgs)
 	if err != nil {
@@ -190,12 +230,17 @@ func userFollowing(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := getDBFromContext(r)
 	// Query messages
-	query := `SELECT message.text, message.pub_date, user.username 
-		     FROM message
-		     JOIN user ON message.author_id = user.user_id
-		     WHERE message.flagged = 0 AND (user.user_id = ? OR user.user_id IN (SELECT whom_id FROM follower WHERE who_id = ?))
-		     ORDER BY message.pub_date DESC
-		     LIMIT ? OFFSET ?`
+	query := `SELECT "message".text, "message".pub_date, "user".username 
+			  FROM "message"
+			  JOIN "user" ON "message".author_id = "user".user_id
+			  WHERE "message".flagged = 0
+  			  AND ("user".user_id = $1
+  			  OR "user".user_id IN (
+      		  SELECT whom_id 
+      		  FROM follower 
+      		  WHERE who_id = $2))
+			  ORDER BY "message".pub_date DESC
+			  LIMIT $3 OFFSET $4`
 
 	rows, err := db.Query(query, userID, userID, noMsgs, offset)
 	if err != nil {
@@ -248,12 +293,12 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 
 		// Query messages
-		query := `SELECT message.text, message.pub_date, user.username 
+		query := `SELECT message.text, message.pub_date, "user".username 
 			FROM message 
-			JOIN user ON message.author_id = user.user_id 
-			WHERE message.flagged = 0 AND user.user_id = ? 
+			JOIN "user" ON message.author_id = "user".user_id 
+			WHERE message.flagged = 0 AND "user".user_id = $1 
 			ORDER BY message.pub_date DESC 
-			LIMIT ?`
+			LIMIT $2`
 
 		rows, err := db.Query(query, userID, noMsgs)
 		if err != nil {
@@ -291,7 +336,7 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 
 		// Insert message into DB
 		query := `INSERT INTO message (author_id, text, pub_date, flagged)
-				  VALUES (?, ?, ?, 0)`
+				  VALUES ($1, $2, $3, 0)`
 
 		_, err = db.Exec(query, userID, requestData.Content, time.Now().Unix())
 		if err != nil {
@@ -351,7 +396,7 @@ func follow(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Follow the user
-			query := `INSERT INTO follower (who_id, whom_id) VALUES (?, ?)`
+			query := `INSERT INTO follower (who_id, whom_id) VALUES ($1, $2)`
 			_, err = db.Exec(query, userID, followsUserID)
 			if err != nil {
 				http.Error(w, "Database insert error", http.StatusInternalServerError)
@@ -373,7 +418,7 @@ func follow(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Unfollow the user
-			query := `DELETE FROM follower WHERE who_id = ? AND whom_id = ?`
+			query := `DELETE FROM follower WHERE who_id = $1 AND whom_id = $2`
 			_, err = db.Exec(query, userID, unfollowUserID)
 			if err != nil {
 				http.Error(w, "Database insert error", http.StatusInternalServerError)
@@ -391,10 +436,10 @@ func follow(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Query followers
-		query := `SELECT user.username FROM user
-					INNER JOIN follower ON follower.whom_id=user.user_id
-					WHERE follower.who_id=?
-					LIMIT ?`
+		query := `SELECT "user".username FROM "user"
+					INNER JOIN follower ON follower.whom_id="user".user_id
+					WHERE follower.who_id= $1
+					LIMIT $2`
 		rows, err := db.Query(query, userID, noFollowers)
 		if err != nil {
 			http.Error(w, "Database query error", http.StatusInternalServerError)
@@ -433,7 +478,7 @@ func updateLatest(r *http.Request) {
 		return
 	}
 
-	err = os.WriteFile("latest_processed_sim_action_id.txt", []byte(strconv.Itoa(parsedCommandID)), 0644)
+	err = os.WriteFile("../db/latest_processed_sim_action_id.txt", []byte(strconv.Itoa(parsedCommandID)), 0644)
 	if err != nil {
 		fmt.Println("Error writing latest ID:", err)
 	}
@@ -464,7 +509,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	var user User
-	err = db.QueryRow("SELECT user_id, username, pw_hash FROM user WHERE username = ?", creds.Username).Scan(&user.ID, &user.Username, &user.PwHash)
+	err = db.QueryRow(`SELECT user_id, username, pw_hash FROM "user" WHERE username = $1`, creds.Username).Scan(&user.ID, &user.Username, &user.PwHash)
 	if err != nil {
 		http.Error(w, "Invalid username", http.StatusUnauthorized)
 		return
@@ -522,7 +567,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if username exists
 	var exists bool
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM user WHERE username = ?)", requestData.Username).Scan(&exists)
+	err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "user" WHERE username = $1)`, requestData.Username).Scan(&exists)
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
 		return
@@ -540,7 +585,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert user
-	_, err = db.Exec("INSERT INTO user (username, email, pw_hash) VALUES (?, ?, ?)", requestData.Username, requestData.Email, string(hashedPassword))
+	_, err = db.Exec(`INSERT INTO "user" (username, email, pw_hash) VALUES ($1, $2, $3)`, requestData.Username, requestData.Email, string(hashedPassword))
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
 		return
