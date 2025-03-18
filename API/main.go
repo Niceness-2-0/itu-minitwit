@@ -83,7 +83,6 @@ func connectDB() (*sql.DB, error) {
 
 // Middleware to inject database connection into the request's context
 func dbMiddleware(next http.Handler) http.Handler {
-	log.Println("dbMiddleware was called...")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Create the connection string
 		psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
@@ -168,7 +167,6 @@ func notReqFromSimulator(w http.ResponseWriter, r *http.Request) bool {
 
 // getMessages
 func getMessages(w http.ResponseWriter, r *http.Request) {
-	log.Println("getMessages was called")
 	updateLatest(r)
 
 	noMsgs := 100 // Default 100 messages
@@ -211,8 +209,6 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 
 // userFollowing hanldes GET (retrieve messages from the people the user follows)
 func userFollowing(w http.ResponseWriter, r *http.Request) {
-	log.Println("userFollowing was called")
-
 	vars := mux.Vars(r)
 	userID := vars["userID"]
 
@@ -266,7 +262,6 @@ func userFollowing(w http.ResponseWriter, r *http.Request) {
 
 // messagesPerUser handles GET (retrieve messages) and POST (post a message)
 func messagesPerUser(w http.ResponseWriter, r *http.Request) {
-	log.Println("messagesPerUser was called")
 	updateLatest(r)
 	vars := mux.Vars(r)
 	username := vars["username"]
@@ -350,7 +345,6 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 
 // follow handles GET (retrieve followers) and POST (follow, unfollow a user)
 func follow(w http.ResponseWriter, r *http.Request) {
-	log.Println("follow was called")
 	updateLatest(r)
 	vars := mux.Vars(r)
 	username := vars["username"]
@@ -485,7 +479,6 @@ func updateLatest(r *http.Request) {
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("loginHandler was called")
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
@@ -530,7 +523,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("registerHandler was called")
 	updateLatest(r)
 
 	if r.Method != http.MethodPost {
