@@ -766,7 +766,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("../.env"); err != nil {
 		log.Println("No .env file found, using system environment variables.")
 	}
 
