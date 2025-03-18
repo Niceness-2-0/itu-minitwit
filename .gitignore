@@ -203,3 +203,5 @@ go.work.sum
 
 ### Vagrant ###
 .vagrant/
+
+db/latest_processed_sim_action_id.txt
