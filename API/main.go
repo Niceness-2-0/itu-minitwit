@@ -49,7 +49,7 @@ var (
 // The init() function is a special function in Go that is automatically called before main()
 func init() {
 	// Load environment variables from .env file
-	err := godotenv.Load()
+	err := godotenv.Load("../.env")
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}

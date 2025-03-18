@@ -14,8 +14,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-web
-    volumes:
-      - ./db/minitwit.db:/db/minitwit.db
     ports:
       - "5000:5000"
     environment:
