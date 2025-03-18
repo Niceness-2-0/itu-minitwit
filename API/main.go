@@ -25,7 +25,7 @@ type User struct {
 	ID       uint   `gorm:"primaryKey"`
 	Username string `gorm:"uniqueIndex"`
 	Email    string
-	Password string
+	PwHash   string `json:"pw_hash"`
 }
 
 // Message represents a message with user from the database
@@ -46,8 +46,7 @@ var (
 	schema   string
 )
 
-// var schema string
-
+// The init() function is a special function in Go that is automatically called before main()
 func init() {
 	// Load environment variables from .env file
 	err := godotenv.Load()
@@ -82,7 +81,7 @@ func connectDB() (*sql.DB, error) {
 	return db, nil
 }
 
-// Middleware to manage database connection per request
+// Middleware to inject database connection into the request's context
 func dbMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Create the connection string
@@ -136,7 +135,7 @@ func getLatest(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("../db/latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
-		fmt.Errorf("Error reading latest ID file:", err)
+		log.Println(fmt.Errorf("Error reading latest ID file: %w", err))
 		data = []byte("-1")
 	}
 
@@ -170,10 +169,6 @@ func notReqFromSimulator(w http.ResponseWriter, r *http.Request) bool {
 func getMessages(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
 
-	if !notReqFromSimulator(w, r) {
-		return
-	}
-
 	noMsgs := 100 // Default 100 messages
 	if noMsgsStr := r.URL.Query().Get("no"); noMsgsStr != "" {
 		if num, err := strconv.Atoi(noMsgsStr); err == nil {
@@ -181,7 +176,7 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	db, err := getDBFromContext(r)
+	db, _ := getDBFromContext(r)
 	// Query messages
 	query := `SELECT message.text, message.pub_date, "user".username 
 	FROM message 
@@ -212,15 +207,64 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+// userFollowing hanldes GET (retrieve messages from the people the user follows)
+func userFollowing(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID := vars["userID"]
+
+	noMsgs := 100 // Default 100 messages
+	if noMsgsStr := r.URL.Query().Get("no"); noMsgsStr != "" {
+		if num, err := strconv.Atoi(noMsgsStr); err == nil {
+			noMsgs = num
+		}
+	}
+
+	offset := r.URL.Query().Get("offset")
+	if offset == "" {
+		offset = "0"
+	}
+
+	db, _ := getDBFromContext(r)
+	// Query messages
+	query := `SELECT "message".text, "message".pub_date, "user".username 
+			  FROM "message"
+			  JOIN "user" ON "message".author_id = "user".user_id
+			  WHERE "message".flagged = 0
+  			  AND ("user".user_id = $1
+  			  OR "user".user_id IN (
+      		  SELECT whom_id 
+      		  FROM follower 
+      		  WHERE who_id = $2))
+			  ORDER BY "message".pub_date DESC
+			  LIMIT $3 OFFSET $4`
+
+	rows, err := db.Query(query, userID, userID, noMsgs, offset)
+	if err != nil {
+		http.Error(w, "Database query error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// Process results
+	var messages []Message
+	for rows.Next() {
+		var msg Message
+		if err := rows.Scan(&msg.Content, &msg.PubDate, &msg.User); err != nil {
+			http.Error(w, "Error scanning row", http.StatusInternalServerError)
+			return
+		}
+		messages = append(messages, msg)
+	}
+	// Send JSON response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(messages)
+}
+
 // messagesPerUser handles GET (retrieve messages) and POST (post a message)
 func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
 	vars := mux.Vars(r)
 	username := vars["username"]
-
-	if !notReqFromSimulator(w, r) {
-		return
-	}
 
 	noMsgs := 100 // Default 100 messages
 	if noMsgsStr := r.URL.Query().Get("no"); noMsgsStr != "" {
@@ -230,18 +274,18 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db, _ := getDBFromContext(r)
-	if r.Method == http.MethodGet {
 
-		// Get user ID
-		userID, err := getUserID(db, username)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "User not found", http.StatusNotFound)
-			} else {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-			}
-			return
+	// Get user ID
+	userID, err := getUserID(db, username)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
+		return
+	}
+	if r.Method == http.MethodGet {
 
 		// Query messages
 		query := `SELECT message.text, message.pub_date, "user".username 
@@ -270,24 +314,18 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		// Send JSON response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
+
 	} else if r.Method == http.MethodPost {
+		if !notReqFromSimulator(w, r) {
+			return
+		}
+
 		// Decode request body
 		var requestData struct {
 			Content string `json:"content"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 			http.Error(w, `{"status": 400, "error_msg": "Invalid JSON"}`, http.StatusBadRequest)
-			return
-		}
-
-		// Get user ID
-		userID, err := getUserID(db, username)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "User not found", http.StatusNotFound)
-			} else {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-			}
 			return
 		}
 
@@ -440,6 +478,50 @@ func updateLatest(r *http.Request) {
 	}
 }
 
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var creds struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	db, err := connectDB()
+	if err != nil {
+		http.Error(w, "Database connection error", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var user User
+	err = db.QueryRow(`SELECT user_id, username, pw_hash FROM "user" WHERE username = $1`, creds.Username).Scan(&user.ID, &user.Username, &user.PwHash)
+	if err != nil {
+		http.Error(w, "Invalid username", http.StatusUnauthorized)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
+		http.Error(w, "Invalid password", http.StatusUnauthorized)
+		return
+	}
+
+	response := map[string]string{
+		"user_id":  fmt.Sprintf("%d", user.ID),
+		"username": user.Username,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
 
@@ -473,11 +555,11 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := getDBFromContext(r)
+	db, _ := getDBFromContext(r)
 
 	// Check if username exists
 	var exists bool
-	err = db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "user" WHERE username = $1)`, requestData.Username).Scan(&exists)
+	err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "user" WHERE username = $1)`, requestData.Username).Scan(&exists)
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
 		return
@@ -505,15 +587,16 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// TODO Init DB should be removed
 	r := mux.NewRouter()
-	r.Use(dbMiddleware) // Apply the middleware
+	r.Use(dbMiddleware) // Apply the middleware to all endpoints defined in the router
 
+	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
 	r.HandleFunc("/register", registerHandler).Methods("POST", "GET")
 	r.HandleFunc("/latest", getLatest).Methods("GET")
 	r.HandleFunc("/msgs", getMessages).Methods("GET")
 	r.HandleFunc("/msgs/{username}", messagesPerUser).Methods("GET", "POST")
 	r.HandleFunc("/fllws/{username}", follow).Methods("GET", "POST")
+	r.HandleFunc("/following/{userID}", userFollowing).Methods("GET")
 
 	http.Handle("/", r)
 	log.Println("Server running on port 5001")
