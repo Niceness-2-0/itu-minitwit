@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
@@ -42,7 +43,31 @@ type User struct {
 type Message struct {
 	Username string `json:"user"`
 	Text     string `json:"content"`
-	PubDate  int64  `json:"pub_date"`
+	PubDate  string `json:"pub_date"` // the data is received in int64 but we will use a custom unmarshal function
+}
+
+// Custom JSON Unmarshaling to automatically Format Unix Timestamp to the desired Time Data format as we receive the data from the API
+func (m *Message) UnmarshalJSON(data []byte) error {
+	// temporary struct to match incoming JSON structure
+	var aux struct {
+		Username string `json:"user"`
+		Text     string `json:"content"`
+		PubDate  int64  `json:"pub_date"`
+	}
+
+	// this .Unmarshal matches the json types from the API (aux type doesn't have a custom umarshal)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Assign data to fields
+	m.Username = aux.Username
+	m.Text = aux.Text
+
+	// Format the timestamp as a human-readable date
+	m.PubDate = time.Unix(aux.PubDate, 0).Format("2006-01-02 15:04:05")
+
+	return nil
 }
 
 /*
