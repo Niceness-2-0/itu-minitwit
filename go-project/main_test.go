@@ -63,37 +63,66 @@ func TestRegisterUser(t *testing.T) {
 	// Test successful registration
 	resp := registerUser("user123", "password123", "password123", "user123@example.com")
 	if resp.Code != http.StatusFound {
-		t.Errorf("Expected status 302 and success message but got %d. Response: %s", resp.Code, resp.Body.String())
+		t.Errorf(
+			"expected status 302 and success message but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test duplicate username
 	resp = registerUser("user123", "password123", "password123", "user123@example.com")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "The username is already taken") {
-		t.Errorf("Expected status 400 and duplicate username error but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "The username is already taken") {
+		t.Errorf(
+			"expected status 400 and duplicate username error but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test empty username
 	resp = registerUser("", "password123", "password123", "user2@example.com")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a username") {
-		t.Errorf("Expected status 400 and empty username error but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "You have to enter a username") {
+		t.Errorf(
+			"Expected status 400 and empty username error but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test empty password
 	resp = registerUser("user_empty_pw", "", "", "user_empty_pw@example.com")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a password") {
-		t.Errorf("Expected status 400 and empty password error but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "You have to enter a password") {
+		t.Errorf(
+			"Expected status 400 and empty password error but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test mismatching passwords
 	resp = registerUser("user_pw_mismatch", "pass1", "pass2", "user_pw_mismatch@example.com")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "The two passwords do not match") {
-		t.Errorf("Expected status 400 and mismatched password error but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "The two passwords do not match") {
+		t.Errorf(
+			"Expected status 400 and mismatched password error but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test invalid email
 	resp = registerUser("user_invalid_email", "password123", "password123", "invalid-email")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a valid email address") {
-		t.Errorf("Expected status 400 and invalid email error but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "You have to enter a valid email address") {
+		t.Errorf(
+			"Expected status 400 and invalid email error but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 }
@@ -110,20 +139,35 @@ func TestLoginUser(t *testing.T) {
 
 	// Test empty username
 	resp = loginUser("", "password123")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a username") {
-		t.Errorf("Expected status 400 and 'You have to enter a username' message but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "You have to enter a username") {
+		t.Errorf(
+			"Expected status 400 and 'You have to enter a username' message but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test empty password
 	resp = loginUser("testuser", "")
-	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "You have to enter a password") {
-		t.Errorf("Expected status 400 and 'You have to enter a password' message but got %d. Response: %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusBadRequest ||
+		!strings.Contains(resp.Body.String(), "You have to enter a password") {
+		t.Errorf(
+			"Expected status 400 and 'You have to enter a password' message but got %d. Response: %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test incorrect password
 	resp = loginUser("testuser", "wrongpassword")
-	if resp.Code != http.StatusUnauthorized || !strings.Contains(resp.Body.String(), "Invalid password") {
-		t.Errorf("Expected status 401 for wrong password and 'Invalid password' message but got %d. Response %s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusUnauthorized ||
+		!strings.Contains(resp.Body.String(), "Invalid password") {
+		t.Errorf(
+			"Expected status 401 for wrong password and 'Invalid password' message but got %d. Response %s",
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
 
 	// Test logout redirection to /
