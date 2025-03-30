@@ -17,12 +17,16 @@ jobs:
           go-version: stable
       
       - name: "Run Linters for API"
-        working-directory: ./API
-        run: golangci-lint run
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.0
+          working-directory: ./API
 
       - name: "Run Linters for go-project"
-        working-directory: ./go-project
-        run: golangci-lint run
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.0
+          working-directory: ./go-project
 
   docker-lint:
     name: Run Hadolint on all Dockerfiles
