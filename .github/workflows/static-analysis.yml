@@ -38,13 +38,16 @@ jobs:
           sudo chmod +x /bin/hadolint
       - name: List Dockerfiles
         run: |
-          echo "Matched Dockerfiles:"
+          echo "Present files:"
+          find . -type f
+
+          echo "Dockerfiles matched:"
           find . -type f -iname 'Dockerfile*' -print
 
       # Couldn't use the official Docker image because we need multiple Docker files so we cannot specify manually each file name or path => we automate using a script
       - name: Run Hadolint on all Dockerfiles
         run: |
-          find . -type f -iname 'Dockerfile*' -exec echo "Linting {}" \; -exec hadolint {} \;
+          find . -type f -name 'Dockerfile*' -exec echo "Linting {}" \; -exec hadolint {} \;
 
   shellcheck:
     name: Shell Script Lint
