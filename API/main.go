@@ -263,6 +263,8 @@ func userFollowing(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+const errMethodNotAllowed = "Method Not Allowed"
+
 // messagesPerUser handles GET (retrieve messages) and POST (post a message)
 func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
@@ -345,7 +347,7 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -467,7 +469,7 @@ func follow(w http.ResponseWriter, r *http.Request) {
 		}
 
 	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -537,7 +539,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
 	}
 
