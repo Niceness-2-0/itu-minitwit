@@ -39,7 +39,7 @@ jobs:
       - name: List Dockerfiles
         run: |
           echo "Present files:"
-          find . -type f
+          find . -type f -exec echo "Found file {}" \;
 
           echo "Dockerfiles matched:"
           find . -type f -iname 'Dockerfile*' -print
