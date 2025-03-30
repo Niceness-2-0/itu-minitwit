@@ -2,6 +2,9 @@
 # The only possible value is "2".
 version: "2"
 
+run:
+  tests: true # include the test files (*_test.go) when linting
+  
 linters:
   enable:
     - staticcheck # analysis bugs, bad patterns, unused code 
@@ -12,8 +15,7 @@ linters:
   disable:
     - errcheck # find ignored errors (enabled by default)
 
-  run:
-    tests: true # include the test files (*_test.go) when linting
+
 
 formatters:
   enable:
