@@ -4,6 +4,8 @@ version: "2"
 
 run:
   tests: true # include the test files (*_test.go) when linting
+  max-same-issues: 3 # maximum count of issues with the same text
+  fix: true # enable automatix fixing (if supported by the linter)
   
 linters:
   enable:
@@ -16,10 +18,18 @@ linters:
     - errcheck # find ignored errors (enabled by default)
 
 
-
 formatters:
   enable:
     - gci # checks that imports are grouped, ordered and cathegorized
     - gofmt # ensure code follows Go's standard formatting style
     - goimports # add/remove imports
     - golines # breaks long line for better readability
+
+
+severity:
+  default: error
+  rules:
+    - linters:
+        - golines
+      severity: info
+
