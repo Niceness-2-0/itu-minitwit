@@ -15,10 +15,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.0
       
       - name: "Run Linters for API"
         working-directory: ./API
