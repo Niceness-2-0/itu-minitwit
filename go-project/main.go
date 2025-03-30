@@ -94,7 +94,10 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !loggedIn {
 		if session.IsNew {
-			session.Save(r, w) // send the 'Set-Cookie' header only when the session is first created
+			session.Save(
+				r,
+				w,
+			) // send the 'Set-Cookie' header only when the session is first created
 		}
 		http.Redirect(w, r, "/public", http.StatusFound)
 		return
@@ -197,7 +200,11 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Render using the base template
 	w.Header().Set("Content-Type", "text/html")
-	err = tmpl.ExecuteTemplate(w, "layout.html", data) // this writes the response body (from the server)
+	err = tmpl.ExecuteTemplate(
+		w,
+		"layout.html",
+		data,
+	) // this writes the response body (from the server)
 	if err != nil {
 		http.Error(w, "Template rendering error", http.StatusInternalServerError)
 		return
@@ -817,7 +824,8 @@ func main() {
 	}
 
 	// Register a handler to serve the directory where the static files are (e.g. CSS)
-	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
+	r.PathPrefix("/assets/").
+		Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")

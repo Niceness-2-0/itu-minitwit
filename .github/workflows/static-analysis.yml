@@ -1,0 +1,54 @@
+name: Static Analysis
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  go-lint:
+    name: Run Go Linters and Formatters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      
+      - name: "Run Linters for API"
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.0
+          working-directory: ./API
+
+      - name: "Run Linters for go-project"
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.0
+          working-directory: ./go-project
+
+  docker-lint:
+    name: Run Hadolint on all Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # clone repository into the runner VM
+      - name: Install Hadolint
+        run: |
+          sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          sudo chmod +x /bin/hadolint
+      # Couldn't use the official Docker image because we need multiple Docker files so we cannot specify manually each file name or path => we automate using a script
+      - name: Run Hadolint on all Dockerfiles
+        run: |
+          find . -type f -name 'Dockerfile*' -exec echo "Linting {}" \; -exec hadolint {} \;
+
+  shellcheck:
+    name: Shell Script Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+      - name: Run ShellCheck
+        run: |
+          find . -type f -name "*.sh" -exec echo "Checking {}" \; -exec shellcheck {} \;

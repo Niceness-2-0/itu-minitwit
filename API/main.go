@@ -43,7 +43,6 @@ var (
 	user     string
 	password string
 	dbname   string
-	schema   string
 )
 
 // The init() function is a special function in Go that is automatically called before main()
@@ -55,7 +54,6 @@ func init() {
 	}
 
 	// Set the schema name from the environment variable
-	schema = os.Getenv("SCHEMA_NAME")
 	host = os.Getenv("DB_HOST")
 	port, _ = strconv.Atoi(os.Getenv("DB_PORT"))
 	user = os.Getenv("DB_USER")
@@ -81,6 +79,11 @@ func connectDB() (*sql.DB, error) {
 	return db, nil
 }
 
+// contextKey is a custom type to avoid collisions
+type contextKey string
+
+const dbContextKey = contextKey("db")
+
 // Middleware to inject database connection into the request's context
 func dbMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +106,7 @@ func dbMiddleware(next http.Handler) http.Handler {
 		}
 		// Store db in context for handlers
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, "db", db)
+		ctx = context.WithValue(ctx, dbContextKey, db)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -135,7 +138,7 @@ func getLatest(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("../db/latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
-		log.Println(fmt.Errorf("Error reading latest ID file: %w", err))
+		log.Println(fmt.Errorf("error reading latest ID file: %w", err))
 		data = []byte("-1")
 	}
 
@@ -260,6 +263,8 @@ func userFollowing(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+const errMethodNotAllowed = "Method Not Allowed"
+
 // messagesPerUser handles GET (retrieve messages) and POST (post a message)
 func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
@@ -285,8 +290,8 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if r.Method == http.MethodGet {
-
+	switch r.Method {
+	case http.MethodGet:
 		// Query messages
 		query := `SELECT message.text, message.pub_date, "user".username 
 			FROM message 
@@ -315,7 +320,7 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
 
-	} else if r.Method == http.MethodPost {
+	case http.MethodPost:
 		if !notReqFromSimulator(w, r) {
 			return
 		}
@@ -340,6 +345,9 @@ func messagesPerUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		http.Error(w, errMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -366,7 +374,45 @@ func follow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method == http.MethodPost {
+	switch r.Method {
+	case http.MethodGet:
+		noFollowers := 100 // Default 100 followers
+		if noFollowersStr := r.URL.Query().Get("no"); noFollowersStr != "" {
+			if num, err := strconv.Atoi(noFollowersStr); err == nil {
+				noFollowers = num
+			}
+		}
+
+		// Query followers
+		query := `SELECT "user".username FROM "user"
+					INNER JOIN follower ON follower.whom_id="user".user_id
+					WHERE follower.who_id= $1
+					LIMIT $2`
+		rows, err := db.Query(query, userID, noFollowers)
+		if err != nil {
+			http.Error(w, "Database query error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		// Collect follower usernames
+		var followerNames []string
+		for rows.Next() {
+			var username string
+			if err := rows.Scan(&username); err != nil {
+				http.Error(w, "Error scanning result", http.StatusInternalServerError)
+				return
+			}
+			followerNames = append(followerNames, username)
+		}
+
+		// Prepare JSON response
+		response := map[string][]string{"follows": followerNames}
+		// Send JSON response
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+
+	case http.MethodPost:
 		// Decode request body
 		var requestData struct {
 			FollowUsername   string `json:"follow"`
@@ -421,42 +467,9 @@ func follow(w http.ResponseWriter, r *http.Request) {
 
 			w.WriteHeader(http.StatusNoContent)
 		}
-	} else if r.Method == http.MethodGet {
-		noFollowers := 100 // Default 100 followers
-		if noFollowersStr := r.URL.Query().Get("no"); noFollowersStr != "" {
-			if num, err := strconv.Atoi(noFollowersStr); err == nil {
-				noFollowers = num
-			}
-		}
 
-		// Query followers
-		query := `SELECT "user".username FROM "user"
-					INNER JOIN follower ON follower.whom_id="user".user_id
-					WHERE follower.who_id= $1
-					LIMIT $2`
-		rows, err := db.Query(query, userID, noFollowers)
-		if err != nil {
-			http.Error(w, "Database query error", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		// Collect follower usernames
-		var followerNames []string
-		for rows.Next() {
-			var username string
-			if err := rows.Scan(&username); err != nil {
-				http.Error(w, "Error scanning result", http.StatusInternalServerError)
-				return
-			}
-			followerNames = append(followerNames, username)
-		}
-
-		// Prepare JSON response
-		response := map[string][]string{"follows": followerNames}
-		// Send JSON response
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+	default:
+		http.Error(w, errMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -526,7 +539,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
 	}
 
