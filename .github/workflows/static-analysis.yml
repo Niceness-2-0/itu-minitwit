@@ -36,6 +36,10 @@ jobs:
         run: |
           sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
           sudo chmod +x /bin/hadolint
+      - name: List Dockerfiles
+        run: |
+          echo "Matched Dockerfiles:"
+          find . -type f -iname 'Dockerfile*' -print
 
       # Couldn't use the official Docker image because we need multiple Docker files so we cannot specify manually each file name or path => we automate using a script
       - name: Run Hadolint on all Dockerfiles
