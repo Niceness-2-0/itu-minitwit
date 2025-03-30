@@ -44,7 +44,7 @@ jobs:
       # Couldn't use the official Docker image because we need multiple Docker files so we cannot specify manually each file name or path => we automate using a script
       - name: Run Hadolint on all Dockerfiles
         run: |
-          find . -type f -iname 'Dockerfile*' -exec hadolint {} \;
+          find . -type f -iname 'Dockerfile*' -exec echo "Linting {}" \; -exec hadolint {} \;
 
   shellcheck:
     name: Shell Script Lint
@@ -55,4 +55,4 @@ jobs:
         run: sudo apt-get install -y shellcheck
       - name: Run ShellCheck
         run: |
-          find . -type f -name "*.sh" -exec shellcheck {} +
+          find . -type f -name "*.sh" -exec echo "Checking {}" \; -exec shellcheck {} \;
