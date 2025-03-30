@@ -2,11 +2,6 @@
 # The only possible value is "2".
 version: "2"
 
-run:
-  tests: true # include the test files (*_test.go) when linting
-  max-same-issues: 3 # maximum count of issues with the same text
-  fix: true # enable automatix fixing (if supported by the linter)
-  
 linters:
   enable:
     - staticcheck # analysis bugs, bad patterns, unused code 
@@ -25,7 +20,13 @@ formatters:
     - goimports # add/remove imports
     - golines # breaks long line for better readability
 
+run:
+  tests: true # include the test files (*_test.go) when linting
 
+issues:
+  max-same-issues: 3 # maximum count of issues with the same text
+  fix: true # enable automatix fixing (if supported by the linter)
+  
 severity:
   default: error
   rules:
