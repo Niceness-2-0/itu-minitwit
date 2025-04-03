@@ -3,7 +3,6 @@ package handlers
 import (
 	"api/models"
 	"api/repositories"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type UserHandler struct {
@@ -137,7 +137,7 @@ func (h *UserHandler) FollowHandler(w http.ResponseWriter, r *http.Request) {
 	// Get user ID
 	userID, err := h.Repo.GetUserID(username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			http.Error(w, "User not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Database error", http.StatusInternalServerError)

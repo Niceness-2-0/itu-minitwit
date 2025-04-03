@@ -29,14 +29,13 @@ func (repo *UserRepository) CreateUser(user *models.User) error {
 
 // GetUserID fetches the user ID based on username
 func (repo *UserRepository) GetUserID(username string) (uint, error) {
-	var userID uint
-	err := repo.DB.Table("user").Select("user_id").Where("username = ?", username).Scan(&userID).Error
-
+	var user models.User
+	err := repo.DB.Table("user").Select("user_id").Where("username = ?", username).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, err // User not found
 	}
 
-	return userID, err
+	return user.User_Id, err
 }
 
 // Follow a user
