@@ -59,7 +59,7 @@ func notReqFromSimulator(w http.ResponseWriter, r *http.Request) bool {
 	fromSimulator := r.Header.Get("Authorization")
 
 	// Expected authorization header value
-	expectedAuth := "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh"
+	expectedAuth := os.Getenv("AUTH_HEADER")
 
 	if fromSimulator != expectedAuth {
 		http.Error(w, `{"status": 400, "error_msg": "You are not authorized to use this resource!"}`, http.StatusForbidden)
