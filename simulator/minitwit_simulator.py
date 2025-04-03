@@ -9,26 +9,27 @@ import os
 import csv
 import sys
 import json
-import http
-import socket
 import base64
 import requests
 from time import sleep
 from datetime import datetime
 from contextlib import closing
-import sqlite3
+import base64
 
 
 CSV_FILENAME = "./minitwit_scenario.csv"
-USERNAME = "simulator"
-PWD = "super_safe!"
+
+USERNAME = os.getenv("MINITWIT_USERNAME", "default_user")
+PWD = os.getenv("MINITWIT_PASSWORD", "default_password")
+
 CREDENTIALS = ":".join([USERNAME, PWD]).encode("ascii")
 ENCODED_CREDENTIALS = base64.b64encode(CREDENTIALS).decode()
 HEADERS = {
     "Connection": "close",
     "Content-Type": "application/json",
-    f"Authorization": f"Basic {ENCODED_CREDENTIALS}",
+    "Authorization": f"Basic {ENCODED_CREDENTIALS}",
 }
+
 
 
 def get_actions():
