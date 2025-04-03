@@ -20,6 +20,7 @@ import (
 )
 
 var API_BASE_URL string
+var AUTH_HEADER string
 
 // Configurations
 const (
@@ -510,7 +511,7 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+		req.Header.Set("Authorization", AUTH_HEADER)
 
 		// Send request using http.Client
 		client := &http.Client{}
@@ -618,7 +619,7 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", AUTH_HEADER)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -691,7 +692,7 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", AUTH_HEADER)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -768,7 +769,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", AUTH_HEADER)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -804,6 +805,9 @@ func main() {
 
 	// Set API_BASE_URL from env
 	API_BASE_URL = os.Getenv("API_BASE_URL")
+
+	AUTH_HEADER = os.Getenv("AUTH_HEADER")
+
 	if API_BASE_URL == "" {
 		API_BASE_URL = "http://localhost:5001" // Default fallback
 	}
