@@ -1,0 +1,36 @@
+# Defines the configuration version.
+# The only possible value is "2".
+version: "2"
+
+linters:
+  enable:
+    - staticcheck # analysis bugs, bad patterns, unused code 
+    - bodyclose # ensure HTTP response bodies are closed to avoid leaks
+    - govet # correctness issues for different patterns (built-in tool)
+    - ineffassign # detects assignments to variables that are never used
+
+  disable:
+    - errcheck # find ignored errors (enabled by default)
+
+
+formatters:
+  enable:
+    - gci # checks that imports are grouped, ordered and cathegorized
+    - gofmt # ensure code follows Go's standard formatting style
+    - goimports # add/remove imports
+    - golines # breaks long line for better readability
+
+run:
+  tests: true # include the test files (*_test.go) when linting
+
+issues:
+  max-same-issues: 3 # maximum count of issues with the same text
+  fix: true # enable automatix fixing (if supported by the linter)
+  
+severity:
+  default: error
+  rules:
+    - linters:
+        - golines
+      severity: info
+
