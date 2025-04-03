@@ -22,7 +22,7 @@ func (h *SystemHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("../db/latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
-		log.Println(fmt.Errorf("Error reading latest ID file: %w", err))
+		log.Println(fmt.Errorf("error reading latest ID file: %w", err))
 		data = []byte("-1")
 	}
 
