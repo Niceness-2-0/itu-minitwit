@@ -3,7 +3,6 @@ package handlers
 import (
 	"api/models"
 	"api/repositories"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 // MessageHandler handles message-related endpoints
@@ -62,7 +62,7 @@ func (h *MessageHandler) MessagesPerUser(w http.ResponseWriter, r *http.Request)
 	// Get user ID
 	userID, err := h.UserRepo.GetUserID(username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			http.Error(w, "User not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Database error", http.StatusInternalServerError)
