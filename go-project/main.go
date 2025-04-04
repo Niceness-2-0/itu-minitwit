@@ -22,6 +22,7 @@ import (
 )
 
 var API_BASE_URL string
+var AUTH_HEADER string
 
 // Configurations
 const (
@@ -129,7 +130,10 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !loggedIn {
 		if session.IsNew {
-			session.Save(r, w) // send the 'Set-Cookie' header only when the session is first created
+			session.Save(
+				r,
+				w,
+			) // send the 'Set-Cookie' header only when the session is first created
 		}
 		http.Redirect(w, r, "/public", http.StatusFound)
 		return
@@ -232,7 +236,11 @@ func publicTimelineHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Render using the base template
 	w.Header().Set("Content-Type", "text/html")
-	err = tmpl.ExecuteTemplate(w, "layout.html", data) // this writes the response body (from the server)
+	err = tmpl.ExecuteTemplate(
+		w,
+		"layout.html",
+		data,
+	) // this writes the response body (from the server)
 	if err != nil {
 		http.Error(w, "Template rendering error", http.StatusInternalServerError)
 		return
@@ -538,7 +546,7 @@ func userTimelineHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+		req.Header.Set("Authorization", AUTH_HEADER)
 
 		// Send request using http.Client
 		client := &http.Client{}
@@ -646,7 +654,7 @@ func followUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", AUTH_HEADER)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -719,7 +727,7 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", AUTH_HEADER)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -796,7 +804,7 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Authorization", "Basic c2ltdWxhdG9yOnN1cGVyX3NhZmUh")
+	req.Header.Set("Authorization", AUTH_HEADER)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -826,12 +834,15 @@ func addMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	if err := godotenv.Load("../.env"); err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables.")
 	}
 
 	// Set API_BASE_URL from env
 	API_BASE_URL = os.Getenv("API_BASE_URL")
+
+	AUTH_HEADER = os.Getenv("AUTH_HEADER")
+
 	if API_BASE_URL == "" {
 		API_BASE_URL = "http://localhost:5001" // Default fallback
 	}
@@ -852,7 +863,8 @@ func main() {
 	}
 
 	// Register a handler to serve the directory where the static files are (e.g. CSS)
-	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
+	r.PathPrefix("/assets/").
+		Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 
 	r.HandleFunc("/public", publicTimelineHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST", "GET")
