@@ -1,3 +1,14 @@
+global:
+  scrape_interval:     15s # By default, scrape targets every 15 seconds.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds.
+
+  # Attach these extra labels to all timeseries collected by this Prometheus instance.
+  external_labels:
+    monitor: 'codelab-monitor'
+
+rule_files:
+  - 'prometheus.rules.yml'
+
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
@@ -9,7 +20,7 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - "209.38.115.34:5001"  # No http://
+          - "209.38.115.34:5002"  # No http://
           - "209.38.115.34:5000"  # No http://
     relabel_configs:
       - source_labels: [__address__]
@@ -25,7 +36,7 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - "209.38.115.34:5001"  # No http://
+          - "209.38.115.34:5002"  # No http://
           - "209.38.115.34:5000"  # No http://
     relabel_configs:
       - source_labels: [__address__]

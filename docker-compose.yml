@@ -19,18 +19,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-api
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: minitwit
-      DB_PASSWORD: password
-      DB_NAME: minitwit
+    volumes:
+      - sqlite_database:/db
     ports:
       - "5001:5001"
-    depends_on:
-      - postgres
-    networks:
-      - minitwit-net
     restart: always
     # volumes:
     #   - ./db/minitwit.db:/db/minitwit.db
@@ -44,22 +36,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-web
-    volumes:
-      - ./db/minitwit.db:/db/minitwit.db
     ports:
       - "5000:5000"
     environment:
       - DATABASE=/db/minitwit.db
     restart: always
-
-networks:
-  minitwit-net:
-
-
 volumes:
-  postgres_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /path/to/backups/postgres_data
+  sqlite_database:
