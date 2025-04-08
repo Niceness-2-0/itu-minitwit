@@ -29,7 +29,10 @@ func SetupRoutes(userHandler *handlers.UserHandler, messageHandler *handlers.Mes
 
 	// Add metrics endpoint 
 	router.Handle("/metrics", promhttp.Handler())
-
+    log.Println("Starting Prometheus metrics on :9090")
+    if err := http.ListenAndServe(":9090", nil); err != nil {
+        log.Fatalf("Prometheus endpoint failed: %v", err)
+    }
 	// add monitoring wrapper layer over routing 
 	return monitoring.InstrumentHandler(router)
 }
