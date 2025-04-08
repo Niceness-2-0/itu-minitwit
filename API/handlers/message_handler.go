@@ -3,6 +3,7 @@ package handlers
 import (
 	"api/models"
 	"api/repositories"
+	"api/monitoring"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -39,6 +40,7 @@ func (h *MessageHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	messages, err := h.MessageRepo.GetMessages(noMsgs)
 	if err != nil {
 		http.Error(w, "Error fetching messages", http.StatusInternalServerError)
+		monitoring.MessageFetchFailure.WithLabelValues("failed to fecth all messages").Inc()
 		return
 	}
 
@@ -75,6 +77,7 @@ func (h *MessageHandler) MessagesPerUser(w http.ResponseWriter, r *http.Request)
 		messages, err := h.MessageRepo.GetMessagesPerUser(noMsgs, userID)
 		if err != nil {
 			http.Error(w, "Error fetching messages", http.StatusInternalServerError)
+			monitoring.MessageFetchFailure.WithLabelValues("failure on fetching messages per user").Inc()	
 			return
 		}
 		// Send JSON response
@@ -92,6 +95,7 @@ func (h *MessageHandler) MessagesPerUser(w http.ResponseWriter, r *http.Request)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 			http.Error(w, `{"status": 400, "error_msg": "Invalid JSON"}`, http.StatusBadRequest)
+			monitoring.MessagePostFailure.WithLabelValues("failed to post messsage - invalid json").Inc()
 			return
 		}
 
@@ -105,7 +109,7 @@ func (h *MessageHandler) MessagesPerUser(w http.ResponseWriter, r *http.Request)
 
 		// Save message using repository
 		h.MessageRepo.SaveMessage(message)
-
+		monitoring.MessagesPosted.Inc()
 		w.WriteHeader(http.StatusNoContent)
 	}
 

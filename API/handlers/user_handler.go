@@ -3,6 +3,7 @@ package handlers
 import (
 	"api/models"
 	"api/repositories"
+	"api/monitoring"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		monitoring.LoginFailure.WithLabelValues("invalid_json").Inc()
 		return
 	}
 
@@ -42,11 +44,13 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	if err := h.Repo.DB.Where("username = ?", creds.Username).First(&user).Error; err != nil {
 		http.Error(w, "Database query error", http.StatusInternalServerError)
+		monitoring.LoginFailure.WithLabelValues("db_error").Inc()
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
 		http.Error(w, "Invalid password", http.StatusUnauthorized)
+		monitoring.LoginFailure.WithLabelValues("invalid_password").Inc()
 		return
 	}
 
@@ -54,6 +58,7 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		"user_id":  fmt.Sprintf("%d", user.User_Id),
 		"username": user.Username,
 	}
+	monitoring.LoginSuccess.Inc()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -75,6 +80,7 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		http.Error(w, `{"status": 400, "error_msg": "Invalid JSON"}`, http.StatusBadRequest)
+		monitoring.RegisterFailure.WithLabelValues("invalid_json").Inc()
 		return
 	}
 
@@ -96,6 +102,7 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	exists, err := h.Repo.UserExists(requestData.Username)
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
+		monitoring.RegisterFailure.WithLabelValues("db_error_registration").Inc()
 		return
 	}
 	if exists {
@@ -119,10 +126,12 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.Repo.CreateUser(&newUser); err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
+		monitoring.RegisterFailure.WithLabelValues("failed_registration").Inc()
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	monitoring.RegisterSuccess.Inc()
 }
 
 func (h *UserHandler) FollowHandler(w http.ResponseWriter, r *http.Request) {
