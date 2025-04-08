@@ -1,0 +1,19 @@
+groups:
+  - name: minitwit-alerts
+    rules:
+      - alert: HighRequestRate
+        expr: sum(rate(http_requests_total[1m])) > 100
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate"
+          description: "Over 100 reqs/sec detected on MiniTwit"
+      - alert: HighErrorRate  
+        expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m])) * 100 > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate"
+          description: "Over 1% of requests are failing on MiniTwit"

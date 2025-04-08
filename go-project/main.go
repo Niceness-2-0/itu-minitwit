@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var API_BASE_URL string
@@ -31,6 +33,25 @@ const (
 
 var (
 	store = sessions.NewCookieStore([]byte(SECRET)) // this is stored on the client
+)
+
+// counter and histogram type metrics
+var (
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"handler", "method"},
+	)
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "Histogram of response time for handler",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"handler"},
+	)
 )
 
 type User struct {
@@ -69,6 +90,20 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	m.PubDate = time.Unix(aux.PubDate, 0).Format("2006-01-02 15:04:05")
 
 	return nil
+}
+
+// monitoring setup
+func init() {
+	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration)
+}
+
+func instrumentHandler(path string, handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		timer := prometheus.NewTimer(httpRequestDuration.WithLabelValues(path))
+		defer timer.ObserveDuration()
+		httpRequestsTotal.WithLabelValues(path, r.Method).Inc()
+		handler(w, r)
+	}
 }
 
 /*
@@ -840,6 +875,8 @@ func main() {
 	r.HandleFunc("/{username}/follow", followUserHandler).Methods("GET")
 	r.HandleFunc("/{username}/unfollow", unfollowUserHandler).Methods("GET")
 	r.HandleFunc("/add_message", addMessageHandler).Methods("POST")
+	r.HandleFunc("/", instrumentHandler("/", timelineHandler)).Methods("GET")
+	r.Handle("/metrics", promhttp.Handler())
 
 	log.Println("Server started on port:", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))

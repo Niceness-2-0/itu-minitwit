@@ -18,16 +18,25 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+<<<<<<< HEAD
 	github.com/prometheus/client_golang v1.22.0 // indirect
+=======
+	github.com/prometheus/client_golang v1.21.1 // indirect
+>>>>>>> d390f6b60750b0a38f661994364080a86955143e
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
+<<<<<<< HEAD
 	google.golang.org/protobuf v1.36.5 // indirect
+=======
+	google.golang.org/protobuf v1.36.1 // indirect
+>>>>>>> d390f6b60750b0a38f661994364080a86955143e
 	gorm.io/driver/postgres v1.5.11 // indirect
 	gorm.io/gorm v1.25.12 // indirect
 )
