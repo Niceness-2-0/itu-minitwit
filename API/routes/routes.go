@@ -2,8 +2,13 @@ package routes
 
 import (
 	"api/handlers"
+	"api/monitoring"
 
 	"github.com/gorilla/mux"
+
+	"github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 )
 
 // SetupRoutes initializes all the application routes
@@ -24,5 +29,8 @@ func SetupRoutes(userHandler *handlers.UserHandler, messageHandler *handlers.Mes
 	// System routes
 	router.HandleFunc("/latest", systemHandler.GetLatest).Methods("GET")
 
-	return router
+	// Monitoring routes
+	router.Handle("/metrics", promhttp.Handler())
+
+	return monitoring.InstrumentHandler(router)
 }

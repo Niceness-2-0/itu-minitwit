@@ -3,6 +3,7 @@ package handlers
 import (
 	"api/models"
 	"api/repositories"
+	"api/monitoring"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		monitoring.LoginFailure.WithLabelValues("invalid_json").Inc()
 		return
 	}
 
@@ -42,11 +44,13 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	if err := h.Repo.DB.Where("username = ?", creds.Username).First(&user).Error; err != nil {
 		http.Error(w, "Database query error", http.StatusInternalServerError)
+		monitoring.LoginFailure.WithLabelValues("db_error").Inc()	
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
 		http.Error(w, "Invalid password", http.StatusUnauthorized)
+		monitoring.LoginFailure.WithLabelValues("invalid_password").Inc()		
 		return
 	}
 
@@ -54,7 +58,7 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		"user_id":  fmt.Sprintf("%d", user.User_Id),
 		"username": user.Username,
 	}
-
+	monitoring.LoginSuccess.Inc()	
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -123,6 +127,7 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	monitoring.RegisterSuccess.Inc()
 }
 
 func (h *UserHandler) FollowHandler(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +190,7 @@ func (h *UserHandler) FollowHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			w.WriteHeader(http.StatusNoContent)
 		}
+		monitoring.MessagesPosted.Inc()
 	} else if r.Method == http.MethodGet {
 		noFollowers := 100 // Default limit
 		if limitStr := r.URL.Query().Get("no"); limitStr != "" {
