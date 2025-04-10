@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -19,6 +21,34 @@ type UserHandler struct {
 	Repo *repositories.UserRepository
 }
 
+type LogEntry struct {
+	Timestamp string `json:"timestamp"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+	Service   string `json:"service"`
+}
+
+func sendLogToLogstash(message string) {
+	conn, err := net.Dial("tcp", "localhost:50000") // Change to Logstash container's IP if needed
+	if err != nil {
+		fmt.Println("Error connecting to Logstash:", err)
+		return
+	}
+	defer conn.Close()
+
+	logEntry := LogEntry{
+		Timestamp: time.Now().Format(time.RFC3339),
+		Level:     "INFO",
+		Message:   message,
+		Service:   "go-app",
+	}
+
+	jsonLog, _ := json.Marshal(logEntry)
+
+	conn.Write(jsonLog)
+	conn.Write([]byte("\n")) // Ensure newline-delimited JSON (NDJSON)
+}
+
 func NewUserHandler(repo *repositories.UserRepository) *UserHandler {
 	return &UserHandler{Repo: repo}
 }
@@ -27,6 +57,8 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
+	print("calling loginhandler")
+	sendLogToLogstash("LoginHandler called")
 
 	var creds struct {
 		Username string `json:"username"`
@@ -61,6 +93,8 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	updateLatest(r)
+
+	sendLogToLogstash("RegisterHandler called")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)

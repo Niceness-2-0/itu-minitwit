@@ -19,7 +19,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var API_BASE_URL string
+var API_BASE_URL = "http://localhost:5001" // Default API base URL
 var AUTH_HEADER string
 
 // Configurations
