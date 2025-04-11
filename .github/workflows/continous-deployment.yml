@@ -104,7 +104,7 @@
 
           - name: Run tests
             run: |
-              python tests/minitwit_sim_api_test.py
+              python API/tests/minitwit_sim_api_test.py
   
 
 
