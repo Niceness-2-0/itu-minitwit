@@ -57,10 +57,6 @@
               cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache,mode=max
     
 
-
-
-
-
           - name: Run PostgreSQL for tests
             run: |
               docker run -d \
@@ -100,36 +96,20 @@
           - name: Install test dependencies
             run: |
               pip install -r requirements.txt || true
+              pip install pytest
               pip install psycopg2-binary requests python-dotenv
 
           - name: Run tests
+            env:
+              DB_HOST: localhost
+              DB_PORT: 5432
+              DB_USER: postgres
+              DB_PASSWORD: postgres
+              DB_NAME: my_test_db
+              TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+              TEST_PWD: ${{ secrets.TEST_PWD }}
             run: |
-              python API/tests/minitwit_sim_api_test.py
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              pytest API/tests/minitwit_sim_api_test.py
     
           #- name: Configure SSH
           #  run: |
