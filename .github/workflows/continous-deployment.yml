@@ -55,7 +55,12 @@
               tags: ${{ secrets.DOCKER_USERNAME }}/api:latest
               cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache
               cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache,mode=max
+      
+      
+      test:
+        runs-on: ubuntu-latest
     
+        steps:
 #
           #- name: Run PostgreSQL for tests
           #  run: |
