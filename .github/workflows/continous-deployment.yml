@@ -6,7 +6,7 @@
         # Run workflow every time something is pushed to the main branch
         branches:
           - main
-          #- deployment
+          - talha
       # allow manual triggers for now too
       workflow_dispatch:
         manual: true
@@ -56,13 +56,80 @@
               cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache
               cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache,mode=max
     
-          #- name: Test minitwit
-          #  run: |
-          #    docker build -t $DOCKER_USERNAME/minitwittestimage -f Dockerfile-go-api-test .
-          #    yes 2>/dev/null | docker compose up -d
-          #    docker run --rm $DOCKER_USERNAME/minitwittestimage
-          #  env:
-          #    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+
+
+
+
+          - name: Run PostgreSQL for tests
+            run: |
+              docker run -d \
+                --name test-postgres \
+                -e POSTGRES_USER=postgres \
+                -e POSTGRES_PASSWORD=postgres \
+                -e POSTGRES_DB=my_test_db \
+                -p 5432:5432 \
+                postgres:14
+
+          - name: Run API container for tests
+            run: |
+              docker build -f Dockerfile-api -t my-api-test .
+              docker run -d \
+                --name test-api \
+                --network host \
+                -e DB_HOST=localhost \
+                -e DB_PORT=5432 \
+                -e DB_USER=postgres \
+                -e DB_PASSWORD=postgres \
+                -e DB_NAME=my_test_db \
+                my-api-test
+
+          - name: Wait for API to become ready
+            run: |
+              for i in {1..10}; do
+                curl -s http://localhost:5001/health && break
+                echo "Waiting for API..."
+                sleep 3
+              done
+
+          - name: Set up Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: '3.10'
+
+          - name: Install test dependencies
+            run: |
+              pip install -r requirements.txt || true
+              pip install psycopg2-binary requests python-dotenv
+
+          - name: Run tests
+            run: |
+              python tests/minitwit_sim_api_test.py
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
           #- name: Configure SSH
           #  run: |
