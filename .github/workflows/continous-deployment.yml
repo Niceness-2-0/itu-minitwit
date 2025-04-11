@@ -59,7 +59,7 @@
       
       test:
         runs-on: ubuntu-latest
-    
+        needs: build
         steps:
 #
           #- name: Run PostgreSQL for tests
@@ -86,6 +86,8 @@
           #      -e DB_NAME=my_test_db \
           #      my-api-test
 #
+          - name: Checkout
+            uses: actions/checkout@v2
 
 
           - name: Configure SSH for testing
