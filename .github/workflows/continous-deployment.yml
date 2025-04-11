@@ -130,7 +130,7 @@
           - name: Run tests
             env:
               DB_HOST: ${{ secrets.TEST_DB_HOST }}
-              DB_PORT: ${{ vars.TEST_DB_PORT }}
+              DB_PORT: ${{ vars.DB_PORT }}
               DB_USER: ${{ secrets.TEST_DB_USER}}
               DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
               DB_NAME: ${{ vars.TEST_DB_NAME }}
