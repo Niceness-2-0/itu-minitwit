@@ -18,7 +18,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", 5432)
 
-BASE_URL = 'http://127.0.0.1:5001'
+BASE_URL = os.getenv('TEST_IP', 'http://127.0.0.1:5001')
 USERNAME = os.getenv("TEST_USERNAME")
 PWD = os.getenv("TEST_PWD")
 CREDENTIALS = ':'.join([USERNAME, PWD]).encode('ascii')
