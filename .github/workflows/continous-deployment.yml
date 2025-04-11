@@ -56,39 +56,59 @@
               cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache
               cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache,mode=max
     
+#
+          #- name: Run PostgreSQL for tests
+          #  run: |
+          #    docker run -d \
+          #      --name test-postgres \
+          #      -e POSTGRES_USER=postgres \
+          #      -e POSTGRES_PASSWORD=postgres \
+          #      -e POSTGRES_DB=my_test_db \
+          #      -p 5432:5432 \
+          #      postgres:14
+#
+          #- name: Run API container for tests
+          #  run: |
+          #    docker build -f Dockerfile-api -t my-api-test .
+          #    docker run -d \
+          #      -p 5001:5001 \
+          #      --name test-api \
+          #      --network host \
+          #      -e DB_HOST=localhost \
+          #      -e DB_PORT=5432 \
+          #      -e DB_USER=postgres \
+          #      -e DB_PASSWORD=postgres \
+          #      -e DB_NAME=my_test_db \
+          #      my-api-test
+#
 
-          - name: Run PostgreSQL for tests
-            run: |
-              docker run -d \
-                --name test-postgres \
-                -e POSTGRES_USER=postgres \
-                -e POSTGRES_PASSWORD=postgres \
-                -e POSTGRES_DB=my_test_db \
-                -p 5432:5432 \
-                postgres:14
 
-          - name: Run API container for tests
+          - name: Configure SSH for testing
             run: |
-              docker build -f Dockerfile-api -t my-api-test .
-              docker run -d \
-                -p 5001:5001 \
-                --name test-api \
-                --network host \
-                -e DB_HOST=localhost \
-                -e DB_PORT=5432 \
-                -e DB_USER=postgres \
-                -e DB_PASSWORD=postgres \
-                -e DB_NAME=my_test_db \
-                my-api-test
+              mkdir -p ~/.ssh/
+              echo "$SSH_KEY" > ~/.ssh/id_ed25519
+              chmod 600 ~/.ssh/id_ed25519
+            env:
+              SSH_KEY: ${{ secrets.SSH_KEY }}
+        
+          - name: Deploy to server
+            # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
+            run: >
+              ssh $SSH_USER@$SSH_HOST
+              -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+              '/test/test.sh'
+            env:
+              SSH_USER: ${{ secrets.SSH_USER }}
+              SSH_HOST: ${{ secrets.SSH_HOST }}
 
           - name: Wait for API to become ready
             run: |
               for i in {1..10}; do
-                curl -s http://localhost:5001/health && break
+                curl -s http://${{ vars.TEST_IP }}:5001/health && break
                 echo "Waiting for API..."
                 sleep 3
               done
-
+  
           - name: Set up Python
             uses: actions/setup-python@v4
             with:
@@ -102,30 +122,13 @@
 
           - name: Run tests
             env:
-              DB_HOST: localhost
-              DB_PORT: 5432
-              DB_USER: postgres
-              DB_PASSWORD: postgres
-              DB_NAME: my_test_db
+              DB_HOST: ${{ secrets.TEST_DB_HOST }}
+              DB_PORT: ${{ vars.TEST_DB_PORT }}
+              DB_USER: ${{ secrets.TEST_DB_USER}}
+              DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+              DB_NAME: ${{ vars.TEST_DB_NAME }}
               TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
               TEST_PWD: ${{ secrets.TEST_PWD }}
+              TEST_IP: ${{ vars.TEST_IP }}
             run: |
               pytest API/tests/minitwit_sim_api_test.py
-    
-          #- name: Configure SSH
-          #  run: |
-          #    mkdir -p ~/.ssh/
-          #    echo "$SSH_KEY" > ~/.ssh/id_ed25519
-          #    chmod 600 ~/.ssh/id_ed25519
-          #  env:
-          #    SSH_KEY: ${{ secrets.SSH_KEY }}
-          
-          #- name: Deploy to server
-          #  # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
-          #  run: >
-          #    ssh $SSH_USER@$SSH_HOST
-          #    -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
-          #    '/minitwit/deploy.sh'
-          #  env:
-          #    SSH_USER: ${{ secrets.SSH_USER }}
-          #    SSH_HOST: ${{ secrets.SSH_HOST }}
