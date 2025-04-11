@@ -71,6 +71,7 @@
             run: |
               docker build -f Dockerfile-api -t my-api-test .
               docker run -d \
+                -p 5001:5001 \
                 --name test-api \
                 --network host \
                 -e DB_HOST=localhost \
