@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
@@ -18,7 +17,8 @@ func ConnectDB() (*gorm.DB, error) {
 	// Load environment variables
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		// todo this is for testing purposes
+		// log.Fatal("Error loading .env file")
 	}
 
 	host := os.Getenv("DB_HOST")
