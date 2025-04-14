@@ -6,7 +6,7 @@
         # Run workflow every time something is pushed to the main branch
         branches:
           - main
-          - talha
+          #- talha
       # allow manual triggers for now too
       workflow_dispatch:
         manual: true
@@ -106,3 +106,27 @@
               TEST_IP: ${{ vars.TEST_IP }}
             run: |
               pytest API/tests/minitwit_sim_api_test.py
+              
+      #deploy:
+      #  needs: test
+      #  runs-on: ubuntu-latest
+      #  steps:
+      #    - name: Checkout
+      #      uses: actions/checkout@v2
+#
+      #    - name: Configure SSH for deployment
+      #      run: |
+      #        mkdir -p ~/.ssh/
+      #        echo "$SSH_KEY" > ~/.ssh/id_ed25519
+      #        chmod 600 ~/.ssh/id_ed25519
+      #      env:
+      #        SSH_KEY: ${{ secrets.SSH_KEY }}
+#
+      #    - name: Deploy to server
+      #      run: >
+      #        ssh $SSH_USER@$SSH_HOST
+      #        -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+      #        '/test/deploy.sh'
+      #      env:
+      #        SSH_USER: ${{ secrets.SSH_USER }}
+      #        SSH_HOST: ${{ secrets.SSH_HOST }}
