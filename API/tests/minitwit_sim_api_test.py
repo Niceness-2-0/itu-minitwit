@@ -5,17 +5,54 @@ import sqlite3
 import requests
 from pathlib import Path
 from contextlib import closing
+import psycopg2
+from psycopg2 import sql
+from dotenv import load_dotenv
 
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
-BASE_URL = 'http://127.0.0.1:5001'
-USERNAME = 'simulator'
-PWD = 'super_safe!'
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", 5432)
+
+BASE_URL = os.getenv('TEST_IP', 'http://127.0.0.1:5001')
+USERNAME = os.getenv("TEST_USERNAME")
+PWD = os.getenv("TEST_PWD")
 CREDENTIALS = ':'.join([USERNAME, PWD]).encode('ascii')
 ENCODED_CREDENTIALS = base64.b64encode(CREDENTIALS).decode()
 HEADERS = {'Connection': 'close',
            'Content-Type': 'application/json',
            f'Authorization': f'Basic {ENCODED_CREDENTIALS}'}
 
+def init_db():
+    with psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    ) as conn:
+        conn.autocommit = True
+        with conn.cursor() as cursor:
+            # Optional: Drop all tables first
+            cursor.execute("""
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    -- disable referential integrity
+                    EXECUTE 'DROP SCHEMA public CASCADE';
+                    EXECUTE 'CREATE SCHEMA public';
+                END $$;
+            """)
+
+            # Then run schema.sql
+            schema_path = Path(__file__).resolve().parent.parent / 'database' / 'schema.sql'
+            with open(schema_path, 'r') as f:
+                cursor.execute(f.read())
+init_db()
 
 def test_latest():
     # post something to update LATEST

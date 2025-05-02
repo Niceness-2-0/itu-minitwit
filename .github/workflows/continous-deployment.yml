@@ -6,18 +6,10 @@
         # Run workflow every time something is pushed to the main branch
         branches:
           - main
-          #- deployment
+          #- talha
       # allow manual triggers for now too
       workflow_dispatch:
         manual: true
-    
-    # Remember to set the following secrets in your repository's settings:
-    # https://github.com/your_username/itu-minitwit-ci/settings/secrets/actions
-    # DOCKER_USERNAME
-    # DOCKER_PASSWORD
-    # SSH_USER
-    # SSH_KEY
-    # SSH_HOST
     
     jobs:
       build:
@@ -55,29 +47,86 @@
               tags: ${{ secrets.DOCKER_USERNAME }}/api:latest
               cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache
               cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache,mode=max
-    
-          #- name: Test minitwit
-          #  run: |
-          #    docker build -t $DOCKER_USERNAME/minitwittestimage -f Dockerfile-go-api-test .
-          #    yes 2>/dev/null | docker compose up -d
-          #    docker run --rm $DOCKER_USERNAME/minitwittestimage
-          #  env:
-          #    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-    
-          #- name: Configure SSH
-          #  run: |
-          #    mkdir -p ~/.ssh/
-          #    echo "$SSH_KEY" > ~/.ssh/id_ed25519
-          #    chmod 600 ~/.ssh/id_ed25519
-          #  env:
-          #    SSH_KEY: ${{ secrets.SSH_KEY }}
-          
-          #- name: Deploy to server
-          #  # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
-          #  run: >
-          #    ssh $SSH_USER@$SSH_HOST
-          #    -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
-          #    '/minitwit/deploy.sh'
-          #  env:
-          #    SSH_USER: ${{ secrets.SSH_USER }}
-          #    SSH_HOST: ${{ secrets.SSH_HOST }}
+      
+      
+      test:
+        runs-on: ubuntu-latest
+        needs: build
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+
+
+          - name: Configure SSH for testing
+            run: |
+              mkdir -p ~/.ssh/
+              echo "$SSH_KEY" > ~/.ssh/id_ed25519
+              chmod 600 ~/.ssh/id_ed25519
+            env:
+              SSH_KEY: ${{ secrets.SSH_KEY }}
+        
+          - name: Deploy to server
+            # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
+            run: >
+              ssh $SSH_USER@$SSH_HOST
+              -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+              '/test/test.sh'
+            env:
+              SSH_USER: ${{ secrets.SSH_USER }}
+              SSH_HOST: ${{ secrets.SSH_HOST }}
+
+          - name: Wait for API to become ready
+            run: |
+              for i in {1..10}; do
+                curl -s http://${{ vars.TEST_IP }}:5001/health && break
+                echo "Waiting for API..."
+                sleep 3
+              done
+  
+          - name: Set up Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: '3.10'
+
+          - name: Install test dependencies
+            run: |
+              pip install -r requirements.txt || true
+              pip install pytest
+              pip install psycopg2-binary requests python-dotenv
+
+          - name: Run tests
+            env:
+              DB_HOST: ${{ secrets.TEST_DB_HOST }}
+              DB_PORT: ${{ vars.DB_PORT }}
+              DB_USER: ${{ secrets.TEST_DB_USER}}
+              DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+              DB_NAME: ${{ vars.TEST_DB_NAME }}
+              TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+              TEST_PWD: ${{ secrets.TEST_PWD }}
+              TEST_IP: ${{ vars.TEST_IP }}
+            run: |
+              pytest API/tests/minitwit_sim_api_test.py
+              
+      #deploy:
+      #  needs: test
+      #  runs-on: ubuntu-latest
+      #  steps:
+      #    - name: Checkout
+      #      uses: actions/checkout@v2
+#
+      #    - name: Configure SSH for deployment
+      #      run: |
+      #        mkdir -p ~/.ssh/
+      #        echo "$SSH_KEY" > ~/.ssh/id_ed25519
+      #        chmod 600 ~/.ssh/id_ed25519
+      #      env:
+      #        SSH_KEY: ${{ secrets.SSH_KEY }}
+#
+      #    - name: Deploy to server
+      #      run: >
+      #        ssh $SSH_USER@$SSH_HOST
+      #        -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+      #        '/test/deploy.sh'
+      #      env:
+      #        SSH_USER: ${{ secrets.SSH_USER }}
+      #        SSH_HOST: ${{ secrets.SSH_HOST }}
