@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 
@@ -18,6 +19,7 @@ func ConnectDB() (*gorm.DB, error) {
 	err := godotenv.Load()
 	if err != nil {
 		// todo this is for testing purposes
+		log.Println("Error loading .env file")
 		// log.Fatal("Error loading .env file")
 	}
 
