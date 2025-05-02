@@ -6,7 +6,6 @@
         # Run workflow every time something is pushed to the main branch
         branches:
           - main
-          #- talha
       # allow manual triggers for now too
       workflow_dispatch:
         manual: true
