@@ -2,9 +2,8 @@ package handlers
 
 import (
 	"api/models"
+	"api/monitoring"
 	"api/repositories"
-	"api/monitoring"
-	"api/monitoring"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -79,7 +78,7 @@ func (h *MessageHandler) MessagesPerUser(w http.ResponseWriter, r *http.Request)
 		messages, err := h.MessageRepo.GetMessagesPerUser(noMsgs, userID)
 		if err != nil {
 			http.Error(w, "Error fetching messages", http.StatusInternalServerError)
-			monitoring.MessageFetchFailure.WithLabelValues("failure on fetching messages per user").Inc()	
+			monitoring.MessageFetchFailure.WithLabelValues("failure on fetching messages per user").Inc()
 			return
 		}
 		// Send JSON response

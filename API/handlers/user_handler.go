@@ -4,7 +4,6 @@ import (
 	"api/models"
 	"api/monitoring"
 	"api/repositories"
-	"api/monitoring"
 	"encoding/json"
 	"errors"
 	"fmt"
