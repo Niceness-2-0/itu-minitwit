@@ -3,38 +3,49 @@ package main
 import (
 	"api/database"
 	"api/handlers"
+	"api/logger"
 	"api/repositories"
 	"api/routes"
-	"log"
 	"net/http"
+
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
+	// Set up logrus to write logs to a file
+	logger.InitLogger()
+
+	logrus.Info("Initializing application")
+
 	// Initialize database
 	db, err := database.ConnectDB()
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatalf("Database connection failed: %v", err)
 	}
 
-	// Get sql.DB for connection pool management
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatal("Failed to get database connection:", err)
+		logrus.Fatalf("Failed to get database connection: %v", err)
 	}
 	defer sqlDB.Close()
 
-	// Initialize repositories
+	logrus.Info("Database connected")
+
+	// Initialize repositories and handlers
 	userRepo := repositories.NewUserRepository(db)
 	messageRepo := repositories.NewMessageRepository(db)
 
-	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userRepo)
 	messageHandler := handlers.NewMessageHandler(messageRepo, userRepo)
 	systemHandler := handlers.NewSystemHandler()
 
+	logrus.Info("Repositories and handlers initialized")
+
 	// Setup routes
 	router := routes.SetupRoutes(userHandler, messageHandler, systemHandler)
 
-	log.Println("Server started on :5001")
-	log.Fatal(http.ListenAndServe(":5001", router))
+	logrus.WithField("port", "5001").Info("Starting HTTP server")
+	if err := http.ListenAndServe(":5001", router); err != nil {
+		logrus.Fatalf("Server failed: %v", err)
+	}
 }
