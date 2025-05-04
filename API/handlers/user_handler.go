@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"api/models"
-	"api/repositories"
 	"api/monitoring"
+	"api/repositories"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -38,22 +39,42 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		monitoring.LoginFailure.WithLabelValues("invalid_json").Inc()
+		logrus.WithFields(logrus.Fields{
+			"handler":  "LoginHandler",
+			"username": creds.Username,
+			"error":    "invalid JSON",
+		}).Warn("Login failed")
+
 		return
 	}
 
-	// Fetch user details
 	var user models.User
 	if err := h.Repo.DB.Where("username = ?", creds.Username).First(&user).Error; err != nil {
 		http.Error(w, "Database query error", http.StatusInternalServerError)
 		monitoring.LoginFailure.WithLabelValues("db_error").Inc()
+
+		logrus.WithFields(logrus.Fields{
+			"handler":  "LoginHandler",
+			"username": creds.Username,
+			"error":    "database error",
+		}).Warn("Login failed")
+
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PwHash), []byte(creds.Password)); err != nil {
 		http.Error(w, "Invalid password", http.StatusUnauthorized)
 		monitoring.LoginFailure.WithLabelValues("invalid_password").Inc()
+		logrus.WithFields(logrus.Fields{
+			"handler":  "LoginHandler",
+			"username": creds.Username,
+			"error":    "invalid password",
+		}).Warn("Login failed")
 		return
 	}
+
+	monitoring.LoginSuccess.Inc()
 
 	response := map[string]string{
 		"user_id":  fmt.Sprintf("%d", user.User_Id),
@@ -132,7 +153,6 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 	monitoring.RegisterSuccess.Inc()
-
 }
 
 func (h *UserHandler) FollowHandler(w http.ResponseWriter, r *http.Request) {

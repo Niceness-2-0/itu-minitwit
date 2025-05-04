@@ -3,10 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 )
 
 // SystemHandler handles system-related endpoints
@@ -22,7 +23,10 @@ func (h *SystemHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("../db/latest_processed_sim_action_id.txt")
 	if err != nil {
 		// If the file doesn't exist or there's an error reading, default to -1
-		log.Println(fmt.Errorf("error reading latest ID file: %w", err))
+		logrus.WithFields(logrus.Fields{
+			"handler": "GetLatest",
+			"error":   err,
+		}).Error("Failed to read latest ID file")
 		data = []byte("-1")
 	}
 

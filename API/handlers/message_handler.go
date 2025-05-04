@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"api/models"
-	"api/repositories"
 	"api/monitoring"
+	"api/repositories"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -110,7 +110,6 @@ func (h *MessageHandler) MessagesPerUser(w http.ResponseWriter, r *http.Request)
 		// Save message using repository
 		h.MessageRepo.SaveMessage(message)
 		monitoring.MessagesPosted.Inc()
-
 		w.WriteHeader(http.StatusNoContent)
 	}
 

@@ -3,8 +3,8 @@ package repositories
 import (
 	"api/dto"
 	"api/models"
-	"log"
 
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -58,7 +58,10 @@ func (repo *MessageRepository) SaveMessage(message *models.Message) {
 	err := repo.DB.Create(message).Error
 	if err != nil {
 		// Handle error
-		log.Println("Error saving message:", err)
+		logrus.WithFields(logrus.Fields{
+			"message": message,
+			"error":   err,
+		}).Error("Failed to save message")
 	}
 }
 
