@@ -1,0 +1,7 @@
+FROM grafana/promtail:latest
+
+# Copy your Promtail config into the container
+#COPY /logging/promtail-config.yaml /etc/promtail/promtail-config.yaml
+
+# Set the default command to run Promtail with your config
+CMD ["-config.file=/etc/promtail/promtail-config.yaml"]

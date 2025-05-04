@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile-api
     volumes:
        - sqlite_database:/db
+       - api_logs:/logs   
     ports:
       - "5001:5001"
     restart: always
@@ -19,5 +20,20 @@ services:
     environment:
       - DATABASE=/db/minitwit.db
     restart: always
+
+  promtail:
+    build:
+      context: .
+      dockerfile: Dockerfile-logging
+    volumes:
+      - api_logs:/logs               
+      - ./logging/promtail-config.yaml:/etc/promtail/promtail-config.yaml
+      - /tmp:/tmp
+    depends_on:
+      - api
+    restart: always
+
 volumes:
   sqlite_database:
+  api_logs:
+
