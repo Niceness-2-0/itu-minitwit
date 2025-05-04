@@ -8,6 +8,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 )
 
 // SetupRoutes initializes all the application routes
@@ -28,9 +30,9 @@ func SetupRoutes(userHandler *handlers.UserHandler, messageHandler *handlers.Mes
 	// System routes
 	router.HandleFunc("/latest", systemHandler.GetLatest).Methods("GET")
 
-	// Add metrics endpoint 
-	router.Handle("/metrics", promhttp.Handler())
 
-	// add monitoring wrapper layer over routing 
+	// Add metrics endpoint 
+	router.Handle("/metrics", promhttp.Handler()).Methods("GET")
+
 	return monitoring.InstrumentHandler(router)
 }

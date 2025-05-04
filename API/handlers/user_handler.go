@@ -4,6 +4,7 @@ import (
 	"api/models"
 	"api/monitoring"
 	"api/repositories"
+	"api/monitoring"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +28,8 @@ func NewUserHandler(repo *repositories.UserRepository) *UserHandler {
 func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		monitoring.LoginFailure.WithLabelValues("invalid_json").Inc()
+
 		return
 	}
 
@@ -78,7 +81,7 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		"user_id":  fmt.Sprintf("%d", user.User_Id),
 		"username": user.Username,
 	}
-
+	monitoring.LoginSuccess.Inc()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -99,6 +102,7 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		http.Error(w, `{"status": 400, "error_msg": "Invalid JSON"}`, http.StatusBadRequest)
+		monitoring.RegisterFailure.WithLabelValues("invalid_json").Inc()
 		monitoring.RegisterFailure.WithLabelValues("invalid_json").Inc()
 		return
 	}
@@ -121,6 +125,7 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	exists, err := h.Repo.UserExists(requestData.Username)
 	if err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
+		monitoring.RegisterFailure.WithLabelValues("db_error_registration").Inc()
 		monitoring.RegisterFailure.WithLabelValues("db_error_registration").Inc()
 		return
 	}
@@ -145,6 +150,7 @@ func (h *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.Repo.CreateUser(&newUser); err != nil {
 		http.Error(w, `{"status": 500, "error_msg": "Database error"}`, http.StatusInternalServerError)
+		monitoring.RegisterFailure.WithLabelValues("failed_registration").Inc()
 		monitoring.RegisterFailure.WithLabelValues("failed_registration").Inc()
 		return
 	}
