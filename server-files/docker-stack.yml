@@ -9,7 +9,6 @@ services:
       - DB_PASSWORD
       - DB_NAME
       - AUTH_HEADER
-      - API_BASE_URL
     volumes:
       - app_sqlite_database:/db
       - app_api_logs:/logs
@@ -26,6 +25,7 @@ services:
       - "5000:5000"
     environment:
       - DATABASE=/db/minitwit.db
+      - API_BASE_URL
     deploy:
       mode: replicated
       replicas: 1
