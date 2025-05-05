@@ -6,6 +6,7 @@
         # Run workflow every time something is pushed to the main branch
         branches:
           - main
+          - talha
       # allow manual triggers for now too
       workflow_dispatch:
         manual: true
@@ -46,6 +47,16 @@
               tags: ${{ secrets.DOCKER_USERNAME }}/api:latest
               cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache
               cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/api:webbuildcache,mode=max
+
+          - name: Build and push promtail
+            uses: docker/build-push-action@v6
+            with:
+              context: .
+              file: ./Dockerfile-logging
+              push: true
+              tags: ${{ secrets.DOCKER_USERNAME }}/promtail:latest
+              cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/promtail:webbuildcache
+              cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/promtail:webbuildcache,mode=max
       
       
       test:
