@@ -9,6 +9,7 @@ services:
       - DB_PASSWORD
       - DB_NAME
       - AUTH_HEADER
+      - API_BASE_URL
     volumes:
       - app_sqlite_database:/db
       - app_api_logs:/logs
