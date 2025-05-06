@@ -166,6 +166,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
+          generate_release_notes: true
           body: |
             Automated release for version ${{ steps.version.outputs.version }}
         env:
