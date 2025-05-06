@@ -10,6 +10,8 @@ on:
   workflow_dispatch:
     manual: true
 
+permissions:
+  contents: write # Needed for git tag and release
 jobs:
   build:
     runs-on: ubuntu-latest
