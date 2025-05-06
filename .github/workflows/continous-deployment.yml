@@ -114,27 +114,26 @@ jobs:
         run: |
           pytest API/tests/minitwit_sim_api_test.py
 
-  #deploy:
-  #  needs: test
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - name: Checkout
-  #      uses: actions/checkout@v2
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
 
-#
-#    - name: Configure SSH for deployment
-#      run: |
-#        mkdir -p ~/.ssh/
-#        echo "$SSH_KEY" > ~/.ssh/id_ed25519
-#        chmod 600 ~/.ssh/id_ed25519
-#      env:
-#        SSH_KEY: ${{ secrets.SSH_KEY }}
-#
-#    - name: Deploy to server
-#      run: >
-#        ssh $SSH_USER@$SSH_HOST
-#        -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
-#        '/test/deploy.sh'
-#      env:
-#        SSH_USER: ${{ secrets.SSH_USER }}
-#        SSH_HOST: ${{ secrets.SSH_HOST }}
+      - name: Configure SSH for deployment
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Deploy to server
+        run: >
+          ssh $PROD_SSH_USER@$PROD_SSH_HOST
+          -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+          'source server-files/deploy.sh'
+        env:
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
