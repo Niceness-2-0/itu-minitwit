@@ -10,8 +10,8 @@ services:
       - DB_NAME
       - AUTH_HEADER
     volumes:
-      - sqlite_database:/db
-      - api_logs:/logs
+      - app_sqlite_database:/db
+      - app_api_logs:/logs
     ports:
       - "5001:5001"
     deploy:
@@ -25,6 +25,7 @@ services:
       - "5000:5000"
     environment:
       - DATABASE=/db/minitwit.db
+      - API_BASE_URL
     deploy:
       mode: replicated
       replicas: 1
@@ -33,7 +34,7 @@ services:
   promtail:
     image: alialexandra/promtail:latest
     volumes:
-      - api_logs:/logs
+      - app_api_logs:/logs
       - /tmp:/tmp
     configs:
       - source: promtail_config
@@ -43,10 +44,10 @@ services:
     restart: always
 
 volumes:
-  sqlite_database:
-    driver: local
-  api_logs:
-    driver: local
+  app_sqlite_database:
+    external: true
+  app_api_logs:
+    external: true
 
 configs:
   promtail_config:
