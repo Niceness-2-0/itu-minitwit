@@ -10,7 +10,7 @@ import os
 from selenium.webdriver.common.action_chains import ActionChains
 
 GUI_URL = os.getenv('TEST_IP', 'http://localhost:5000')
-DB_URL = "db-postgresql-ams3-75716-do-user-19198200-0.k.db.ondigitalocean.com" #need help here
+print("GUI_URL: ", GUI_URL) # TODO: remove this line
 Test_user = "qwerty"
 
 def _get_user_by_name(db_client, name): #this is not working
