@@ -804,14 +804,14 @@ func main() {
 	}
 
 	// Set API_BASE_URL from env
-	API_BASE_URL = os.Getenv("API_BASE_URL")
-	log.Println("API_BASE_URL:", API_BASE_URL)
+	API_BASE_URL := os.Getenv("API_BASE_URL")
 
 	AUTH_HEADER = os.Getenv("AUTH_HEADER")
 
 	if API_BASE_URL == "" {
 		API_BASE_URL = "http://localhost:5001" // Default fallback
 	}
+	log.Println("API_BASE_URL:", API_BASE_URL)
 
 	// Get the PORT environment variable
 	port := os.Getenv("PORT")
