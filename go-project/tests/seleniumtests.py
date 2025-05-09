@@ -62,6 +62,9 @@ def login_user_gui(driver, username, password):
 
 def login_user_gui_test():
     chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
+    chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
     driver=webdriver.Chrome()
     driver.maximize_window()
 
@@ -88,6 +91,10 @@ def make_a_post_gui(driver, username, password, post):
 
 def make_a_post_gui_test():
     chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
+    chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
+
     driver=webdriver.Chrome()
     driver.maximize_window()
 
@@ -131,6 +138,10 @@ def follow_user_gui(driver, username, password):
 def follow_user_gui_test():
     #if there are no previous posts this test will fail.
     chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
+    chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
+
     driver=webdriver.Chrome()
     driver.maximize_window()
     
