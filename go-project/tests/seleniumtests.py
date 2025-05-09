@@ -9,7 +9,7 @@ import os
 
 from selenium.webdriver.common.action_chains import ActionChains
 
-GUI_URL = os.getenv('GUI_URL', 'http://localhost:5000')
+GUI_URL = os.getenv('GUI_URL', 'abcd://localhost:5000')
 print("GUI_URL: ", GUI_URL) # TODO: remove this line
 Test_user = "qwerty"
 
