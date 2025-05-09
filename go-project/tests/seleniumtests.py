@@ -32,7 +32,10 @@ def register_user_gui(driver, username, email, password):
 
 def register_user_gui_test():
     chrome_options = webdriver.ChromeOptions()
-    driver=webdriver.Chrome()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
+    chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
+    driver=webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
     
     sleep(2)
@@ -65,7 +68,7 @@ def login_user_gui_test():
     chrome_options.add_argument("--headless")  # Run in headless mode
     chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
     chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
-    driver=webdriver.Chrome()
+    driver=webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
 
     generated_msg = login_user_gui(driver, Test_user, "secure123")
@@ -95,7 +98,7 @@ def make_a_post_gui_test():
     chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
     chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
 
-    driver=webdriver.Chrome()
+    driver=webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
 
     generated_msg = make_a_post_gui(driver, Test_user, "secure123", "anything")
@@ -142,7 +145,7 @@ def follow_user_gui_test():
     chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
     chrome_options.add_argument("--no-sandbox")  # Disable sandboxing for CI environments
 
-    driver=webdriver.Chrome()
+    driver=webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
     
     unfollow_msg = "You are no longer following"
