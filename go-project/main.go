@@ -390,8 +390,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Send POST request to API `/register` endpoint
 		apiURL := fmt.Sprintf("%s/register", API_BASE_URL)
-		// TODO Remove
-		println("url:", apiURL)
 		resp, err := http.Post(apiURL, "application/json", strings.NewReader(string(payloadBytes)))
 		if err != nil {
 			http.Error(w, "Error contacting register API", http.StatusInternalServerError)
