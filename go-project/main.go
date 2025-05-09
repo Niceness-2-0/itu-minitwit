@@ -687,9 +687,9 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	payloadBytes, _ := json.Marshal(payload)
 	// Create a new POST request
+		// TODO Remove
+		println("url:", url)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
-	// TODO Remove
-	println("url:", url)
 	if err != nil {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
