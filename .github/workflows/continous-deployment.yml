@@ -122,6 +122,7 @@ jobs:
           TEST_PWD: ${{ secrets.TEST_PWD }}
           TEST_IP: ${{ vars.TEST_IP }}
           API_BASE_URL: ${{ vars.TEST_IP }}
+          GUI_URL: ${{ vars.GUI_URL }}
         run: |
           pytest API/tests/minitwit_sim_api_test.py
           python go-project/tests/seleniumtests.py
