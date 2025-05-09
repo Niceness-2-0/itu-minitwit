@@ -8,8 +8,7 @@ import pymongo
 
 from selenium.webdriver.common.action_chains import ActionChains
 
-
-GUI_URL = "http://localhost:5000"
+GUI_URL = os.getenv('TEST_IP', 'http://localhost:5000')
 DB_URL = "db-postgresql-ams3-75716-do-user-19198200-0.k.db.ondigitalocean.com" #need help here
 Test_user = "qwerty"
 
