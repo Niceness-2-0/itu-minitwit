@@ -1,3 +1,2 @@
 selenium>=4.0.0
-pyautogui
-pymongo
+pymongo>=4.0.0
