@@ -28,7 +28,9 @@ def register_user_gui(driver, username, email, password):
     driver.find_element(By.NAME, "password2").send_keys(password)    
     sleep(2)
     driver.find_element(By.XPATH, "/html/body/div/div[2]/form/div/input").submit()
-    sleep(2)
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CLASS_NAME, "flashes"))
+    )
     msg = driver.find_element(By.CLASS_NAME, "flashes").text
     sleep(2)
     return msg
