@@ -805,6 +805,7 @@ func main() {
 
 	// Set API_BASE_URL from env
 	API_BASE_URL = os.Getenv("API_BASE_URL")
+	log.Println("API_BASE_URL:", API_BASE_URL)
 
 	AUTH_HEADER = os.Getenv("AUTH_HEADER")
 
