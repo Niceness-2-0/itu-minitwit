@@ -4,7 +4,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from time import sleep
 import urllib.request
-import pyautogui
 import pymongo
 
 from selenium.webdriver.common.action_chains import ActionChains
