@@ -61,7 +61,7 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/promtail:webbuildcache,mode=max
   test:
     runs-on: ubuntu-latest
-    # TODO TEST PURPOSES --> REMOVE    needs: build
+    needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v2
