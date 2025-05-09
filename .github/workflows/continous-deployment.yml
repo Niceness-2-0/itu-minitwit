@@ -79,7 +79,7 @@ jobs:
         run: >
           ssh $SSH_USER@$SSH_HOST
           -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
-          '/test/test.sh'
+          'source test/test.sh'
         env:
           API_BASE_URL: ${{ vars.TEST_IP }}
           SSH_USER: ${{ secrets.SSH_USER }}
