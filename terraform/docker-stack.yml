@@ -1,0 +1,54 @@
+version: "3.8"
+services:
+  api:
+    image: alialexandra/api:latest
+    environment:
+      - DB_HOST
+      - DB_PORT
+      - DB_USER
+      - DB_PASSWORD
+      - DB_NAME
+      - AUTH_HEADER
+    volumes:
+      - app_sqlite_database:/db
+      - app_api_logs:/logs
+    ports:
+      - "5001:5001"
+    deploy:
+      mode: replicated
+      replicas: 1
+    restart: always
+
+  web:
+    image: alialexandra/web:latest
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE=/db/minitwit.db
+      - API_BASE_URL
+    deploy:
+      mode: replicated
+      replicas: 1
+    restart: always
+
+  promtail:
+    image: alialexandra/promtail:latest
+    volumes:
+      - app_api_logs:/logs
+      - /tmp:/tmp
+    configs:
+      - source: promtail_config
+        target: /etc/promtail/promtail-config.yaml
+    deploy:
+      mode: global  # One instance per node
+    restart: always
+
+volumes:
+  app_sqlite_database:
+    external: true
+  app_api_logs:
+    external: true
+
+configs:
+  promtail_config:
+    file: ./logging/promtail-config.yaml
