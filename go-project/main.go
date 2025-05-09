@@ -688,6 +688,8 @@ func unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	payloadBytes, _ := json.Marshal(payload)
 	// Create a new POST request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
+	// TODO Remove
+	println("url:", url)
 	if err != nil {
 		http.Error(w, "Error contacting the API", http.StatusInternalServerError)
 		return
@@ -813,7 +815,7 @@ func main() {
 	}
 	log.Println("API_BASE_URL:", API_BASE_URL)
 	log.Println("AUTH_HEADER:", AUTH_HEADER)
-	
+
 	// Get the PORT environment variable
 	port := os.Getenv("PORT")
 	if port == "" {
