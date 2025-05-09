@@ -121,6 +121,7 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PWD: ${{ secrets.TEST_PWD }}
           TEST_IP: ${{ vars.TEST_IP }}
+          API_BASE_URL: ${{ vars.TEST_IP }}
         run: |
           pytest API/tests/minitwit_sim_api_test.py
           python go-project/tests/seleniumtests.py
