@@ -77,9 +77,11 @@ jobs:
       - name: Deploy to server
         # Configure the ~./bash_profile and deploy.sh file on the Vagrantfile
         run: >
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST
-          "API_BASE_URL=${{ vars.TEST_IP }} /test/test.sh"
+          ssh $SSH_USER@$SSH_HOST
+          -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+          '/test/test.sh'
         env:
+          API_BASE_URL: ${{ vars.TEST_IP }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
 
