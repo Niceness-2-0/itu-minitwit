@@ -6,7 +6,6 @@ on:
     # Run workflow every time something is pushed to the main branch
     branches:
       - main
-      - talha
   # allow manual triggers for now too
   workflow_dispatch:
     manual: true
@@ -61,7 +60,7 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/promtail:webbuildcache,mode=max
   test:
     runs-on: ubuntu-latest
-    # TODO TEST PURPOSES --> REMOVE    needs: build
+    needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -120,59 +119,58 @@ jobs:
           pytest API/tests/minitwit_sim_api_test.py
           python go-project/tests/seleniumtests.py
 
-#  deploy:
-#    needs: test
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v2
-#
-#      - name: Configure SSH for deployment
-#        run: |
-#          mkdir -p ~/.ssh/
-#          echo "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
-#          chmod 600 ~/.ssh/id_ed25519
-#        env:
-#          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-#
-#      - name: Deploy to server
-#        run: >
-#          ssh $PROD_SSH_USER@$PROD_SSH_HOST
-#          -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
-#          'source server-files/deploy.sh'
-#        env:
-#          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
-#          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
-#  release:
-#    needs: deploy
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v2
-#
-#      - name: Read version from file
-#        id: version
-#        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-#
-#      - name: Set up Git
-#        run: |
-#          git config --global user.name "github-actions"
-#          git config --global user.email "github-actions@github.com"
-#
-#      - name: Create and push git tag
-#        run: |
-#          git tag ${{ steps.version.outputs.version }}
-#          git push origin ${{ steps.version.outputs.version }}
-#
-#      - name: Create GitHub Release
-#        uses: softprops/action-gh-release@v2
-#        with:
-#          tag_name: ${{ steps.version.outputs.version }}
-#          name: Release ${{ steps.version.outputs.version }}
-#          generate_release_notes: true
-#          body: |
-#            Automated release for version ${{ steps.version.outputs.version }}
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure SSH for deployment
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$PROD_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Deploy to server
+        run: >
+          ssh $PROD_SSH_USER@$PROD_SSH_HOST
+          -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no
+          'source server-files/deploy.sh'
+        env:
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+  release:
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Read version from file
+        id: version
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+      - name: Create and push git tag
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          body: |
+            Automated release for version ${{ steps.version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
