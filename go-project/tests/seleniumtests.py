@@ -1,6 +1,8 @@
 import webbrowser
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from time import sleep
 import urllib.request
@@ -10,7 +12,6 @@ import os
 from selenium.webdriver.common.action_chains import ActionChains
 
 GUI_URL = os.getenv('GUI_URL', 'http://localhost:5000')
-print("GUI_URL: ", GUI_URL) # TODO: remove this line
 Test_user = "qwerty"
 
 def _get_user_by_name(db_client, name): #this is not working
@@ -18,7 +19,9 @@ def _get_user_by_name(db_client, name): #this is not working
 
 def register_user_gui(driver, username, email, password):
     driver.get(GUI_URL + "/register")
-    sleep(2)
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.NAME, "username"))
+    )    
     driver.find_element(By.NAME, "username").send_keys(username)
     driver.find_element(By.NAME, "email").send_keys(email)
     driver.find_element(By.NAME, "password").send_keys(password)
