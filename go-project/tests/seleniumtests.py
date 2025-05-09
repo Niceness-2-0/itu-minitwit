@@ -18,7 +18,6 @@ def _get_user_by_name(db_client, name): #this is not working
 
 def register_user_gui(driver, username, email, password):
     driver.get(GUI_URL + "/register")
-    print(driver.page_source)
     sleep(2)
     driver.find_element(By.NAME, "username").send_keys(username)
     driver.find_element(By.NAME, "email").send_keys(email)
