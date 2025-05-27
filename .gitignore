@@ -211,3 +211,5 @@ db/latest_processed_sim_action_id.txt
 # Local .terraform directories
 **/*.tfvars
 secrets
+
+ssh_key/

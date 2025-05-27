@@ -1,5 +1,22 @@
 version: "3.8"
 services:
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8888:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  loadbalancer:
+    image: alialexandra/nginx-lb
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 2
+
   api:
     image: alialexandra/api:latest
     environment:
@@ -40,8 +57,23 @@ services:
       - source: promtail_config
         target: /etc/promtail/promtail-config.yaml
     deploy:
-      mode: global  # One instance per node
+      mode: global # One instance per node
     restart: always
+
+    mysql:
+    image: mysql:8
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+      - MYSQL_DATABASE=minitwit
+      - MYSQL_USER=alex
+      - MYSQL_PASSWORD=supersecure
+    volumes:
+      - mysql_data:/var/lib/mysql
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+# database should be in a different cluster as well and pined to a dedicated node
 
 volumes:
   app_sqlite_database:
