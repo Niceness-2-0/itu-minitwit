@@ -1,15 +1,5 @@
 # api token
 # here it is exported in the environment like
-# export TF_VAR_do_token=xxx
-variable "do_token" {}
-
-# do region
-variable "region" {}
-
-# make sure to generate a pair of ssh keys
-variable "pub_key" {}
-variable "pvt_key" {}
-
 # setup the provider
 terraform {
         required_providers {

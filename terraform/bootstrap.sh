@@ -32,20 +32,21 @@ echo -e "\n--> Creating Infrastructure\n"
 terraform apply -auto-approve
 
 # generate loadbalancer configuration
-echo -e "\n--> Generating loadbalancer configuration\n"
-bash scripts/gen_load_balancer_config.sh
+# echo -e "\n--> Generating loadbalancer configuration\n"
+# bash scripts/gen_load_balancer_config.sh
 
-# deploy the stack to the cluster
+# todo: update to current logic
+# # deploy the stack to the cluster
 echo -e "\n--> Deploying the Minitwit stack to the cluster\n"
 ssh \
     -o 'StrictHostKeyChecking no' \
-    root@$(terraform output -raw minitwit-swarm-leader-ip-address) \
-    -i ssh_key/terraform \
-    'docker stack deploy minitwit -c minitwit_stack.yml'
+    root@$(terraform output -raw public_ip) \
+    -i /home/alexandra/.ssh/terraform_key \
+    'docker stack deploy -c stack/docker-stack.test.yml minitwit-test-stack'
 
 echo -e "\n--> Done bootstrapping Minitwit"
 echo -e "--> The dbs will need a moment to initialize, this can take up to a couple of minutes..."
 echo -e "--> Site will be avilable @ http://$(terraform output -raw public_ip)"
-echo -e "--> You can check the status of swarm cluster @ http://$(terraform output -raw minitwit-swarm-leader-ip-address):8888"
-echo -e "--> ssh to swarm leader with 'ssh root@\$(terraform output -raw minitwit-swarm-leader-ip-address) -i ssh_key/terraform'"
+echo -e "--> You can check the status of swarm cluster @ http://$(terraform output -raw public_ip):8888"
+echo -e "--> ssh to swarm leader with 'ssh root@\$(terraform output -raw minitwit-swarm-leader-ip-address) -i /home/alexandra/.ssh/terraform_key'"
 echo -e "--> To remove the infrastructure run: terraform destroy -auto-approve"
