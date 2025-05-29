@@ -1,28 +1,26 @@
 # itu-minitwit
 Niceness-2.0 version of ITU-MiniTwit
 
+ ## API
+ API project
 
-# How to run container
+ ## db
+ Stores sim action id that is used by API
 
-cd into go project.
+ ## go-project
+ Frontend (web application) project
 
-run in the terminal
+## logging
+Promtail configuration
 
-```
-make build
-```
-```
-make up
-```
+## original_minitwit
+Old version of minitwit with Python Flask
 
-The program will now be running in the container
+## server-files
+Some of the files we are using in the virtual machines
 
-to take it down write:
+## simulator
+Simulator files
 
-```
-make down
-```
-
-```
-make clean
-```
+## report
+LaTeX files and build as PDF.
