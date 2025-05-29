@@ -89,6 +89,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ env.BRANCH_NAME }}
+          base: main
           title: "Auto-update report PDF"
           body: |
             This pull request was automatically generated to include the latest PDF build of the report.
