@@ -216,3 +216,6 @@ secrets
 ssh_key/
 
 **/secrets
+
+
+terraform/.terraform/
