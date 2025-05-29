@@ -36,9 +36,9 @@ The \textbf{deploy stage} The deploy stage connects to the production server and
 We also added a \textbf{release stage}, where we created a new Git tag and published a release on GitHub, using the version stored in a tracked \texttt{VERSION} file.
 
 \subsection{Monitoring} \label{sec:monitoring}
-% 2.2 How do you monitor your systems and what precisely do you monitor?(alexandra :/)
+% 2.2 How do you monitor your systems and what precisely do you monitor?
 
-todo-alexandra: 
+For monitoring our system, we have decided on using \textbf{Prometheus}, \textbf{Grafana} and \textbf{Blackbox Exporter}. Our type of monitoring is a \textbf{pull-based whitebox} and \textbf{blackbox} monitoring. For implementation, we used a Prometheus client for our Go application, which scrapes data from our endpoints and exposed them in a specific endpoint designed for that \\metrics
 
 
 \subsection{Logging}
