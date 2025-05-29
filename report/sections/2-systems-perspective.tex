@@ -6,7 +6,7 @@ The ITU-MiniTwit system follows a modular client-server architecture designed to
 \begin{itemize}
   \item \textbf{Web Application:} The frontend interface allows users to register, log in, follow other users, and post messages. This component communicates exclusively with the backend API.
   
-  \item \textbf{API Server:} The API layer, serves as the core backend of the application. It handles user authentication, message posting, follower relationships, and provides all necessary endpoints for both the frontend and simulator.
+  \item \textbf{API Server:} The API layer, serves as the core backend of the application. It handles user authentication, message posting, follower relationships, and provides all necessary endpoints for both the frontend and simulator. It is structured using a modular design, separating concerns into distinct packages such as handlers, dto, models, and others to improve maintainability and readability.
   
   \item \textbf{Database:} A PostgreSQL database stores persistent data including user accounts, messages, and social connections. The API server interacts with the database through an ORM instead of direct SQL queries.
 \end{itemize}
@@ -22,26 +22,23 @@ A simulation module is also integrated, which emulates realistic user behavior a
   \label{fig:simple-architecture}
 \end{figure}
 
-In our system, we also integrated monitoring tools. While details of which is explained in Section \ref{sec:monitoring} in detail, Figure \ref{fig:monitoring-arch} shows how it is integrated into our system. 
+For container orchestration and deployment, we used Docker Swarm to manage the distribution and scaling of our services across multiple nodes. Our Swarm cluster consists of one manager node and two worker nodes, each of which runs containers for the web application, API, and Promtail for log collection. Figure \ref{fig:docker-swarm} illustrates the deployment structure across nodes in our cluster, highlighting the uniform setup of containers per node. Dotted lines means that those containers do not necessarily have to work in those nodes, it depends on how many replicas we have. For instance, if we have 1 replica for API, then API container will work only one of the nodes. 
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.4\textwidth]{images/monitoring-arch.png}
-  \caption{Monitoring and Logging Architecture}
-  \label{fig:monitoring-arch}
-\end{figure}
-
-For container orchestration and deployment, we used Docker Swarm to manage the distribution and scaling of our services across multiple nodes. Our Swarm cluster consists of one manager node and two worker nodes, each of which runs containers for the web application, API, and Promtail for log collection. Logs are written to a local log volume on each node and collected by Promtail, which forwards them to Loki for centralized aggregation.
-
-This deployment model ensures both high availability and horizontal scalability, as containers are distributed and can be replicated across nodes. The architecture also separates concerns clearly—allowing us to manage application services independently from monitoring components. The diagram below illustrates the deployment structure across nodes in our cluster, highlighting the uniform setup of containers per node and the role of Promtail in the log pipeline.
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.6\textwidth]{images/docker-swarm.png}
+  \includegraphics[width=0.9\textwidth]{images/docker-swarm.png}
   \caption{Deployment Diagram}
   \label{fig:docker-swarm}
 \end{figure}
 
+In our system, we also integrated monitoring tools. While details of which is explained in Section \ref{sec:monitoring} in detail, Figure \ref{fig:monitoring-arch} shows how it is integrated into our system. 
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{images/monitoring-arch.png}
+  \caption{Monitoring and Logging Architecture}
+  \label{fig:monitoring-arch}
+\end{figure}
 
 The Figure \ref{fig:arch-overview} shows the high level system architecture with a focus on request routing. We deployed the application using Docker Swarm across three virtual machines: one manager and two worker nodes as it shown in Figure \ref{fig:docker-swarm}. We used NGINX as a reverse proxy on the manager node to route HTTPS requests to the appropriate services.
 
@@ -50,7 +47,7 @@ All external traffic for our domain is first routed through Cloudflare, which ha
 This architecture ensures scalability, service isolation, and a clear separation of concerns.
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.4\textwidth]{images/arch-overview.png}
+  \includegraphics[width=0.7\textwidth]{images/arch-overview.png}
   \caption{System Architecture Overview}
   \label{fig:arch-overview}
 \end{figure}
@@ -59,7 +56,7 @@ This architecture ensures scalability, service isolation, and a clear separation
 \subsection{Dependencies and Tooling}
 \textbf{Frameworks}
 \\
-The application was refactored into Go to take advantage of its performance and built-in concurrency model. We mostly used Go’s standard library, which provides robust support for HTTP servers and routing out of the box. For more advanced routing, we incorporated the routing library \texttt{Gorilla Mux}\footnote{\url{https://github.com/gorilla/mux}}.
+The application was refactored into Go to take advantage of its performance and built-in concurrency model. We mostly used Go’s standard library, which provides robust support for HTTP servers and routing out of the box. For more advanced routing, we incorporated the routing library \texttt{Gorilla Mux}\footnote{\url{https://github.com/gorilla/mux}}. We chose Go over other languages due to its fast, ease-of-use, and security\footnote{\url{https://www.orientsoftware.com/blog/golang-performance/}}, making it well-suited for a project focused on DevOps and scalability.
 \\
 
 \noindent \textbf{Containers and orchestration}
@@ -69,7 +66,9 @@ We used Docker to containerize our application components, ensuring consistency 
 
 \noindent \textbf{Database}
 \\
-When refactoring away from SQLite, we migrated to a PostgreSQL database which is managed and hosted by DigitalOcean. This provided better scalability, reliability, and support for multiple connections. We used the \texttt{GORM}\footnote{\url{https://gorm.io/}} library to introduce a Database abstraction layer so that we don't directly communicate with the database.
+When refactoring away from SQLite, we migrated to a PostgreSQL database, which is managed and hosted by DigitalOcean. This provided better scalability, reliability, and support for multiple connections. \texttt{GORM}\footnote{\url{https://gorm.io/}} library to introduce a Database abstraction layer so that we don't directly communicate with the database. 
+
+We decided to use PostgreSQL because of its ease-of-use and that it is well suited for applications that requires a lot of read and writes\footnote{\url{https://cleancommit.io/blog/why-use-postgresql-for-your-next-project/}}.
 \\
 
 \noindent \textbf{Others}
@@ -79,7 +78,7 @@ We used a combination of Prometheus, Grafana, Loki, and Promtail. Prometheus was
 
 \subsection{Subsystem Interactions}
 %- Sequence diagram for user interaction flow 
-\href{https://drive.google.com/file/d/18J39M3thQ0d2ehqQaVaydPF2SMUSb1fc/view?usp=sharing}{1st}
+%\href{https://drive.google.com/file/d/18J39M3thQ0d2ehqQaVaydPF2SMUSb1fc/view?usp=sharing}{1st}
 The user-flow (as shown in Figure \ref{fig:user-interaction}) and simulator (as shown in Figure \ref{fig:simulator-interaction}) show the interaction when trying to log in. There are other subsystem interactions, but we chose to only focus on the log in part, to not make the diagrams too big.
 
 \begin{figure}[H]
@@ -89,31 +88,31 @@ The user-flow (as shown in Figure \ref{fig:user-interaction}) and simulator (as 
   \label{fig:user-interaction}
 \end{figure}
 
-\href{https://drive.google.com/file/d/1UtkS9Ijj9L4FBIYaqHKRZSK_WOFRrOoa/view?usp=sharing}{2nd}
+%\href{https://drive.google.com/file/d/1UtkS9Ijj9L4FBIYaqHKRZSK_WOFRrOoa/view?usp=sharing}{2nd}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{images/flow.png}
+  \includegraphics[width=\textwidth]{images/simulator.png}
   \caption{Sequence diagram for simulator}
   \label{fig:simulator-interaction}
 \end{figure}
 
 
 \subsection{Static Analysis and System Quality}
-To ensure a maintainable and reliable system, we incorporated static analysis tools into our development workflow. These tools helped us improve code health and prevent technical debt accumulation.
+To ensure a maintainable and reliable system, we incorporated static analysis tools to improve code health and prevent technical debt accumulation.
 
-We integrated three static analysis tools into our GitHub Actions CI/CD pipeline: \textbf{golangci-lint}, \textbf{Hadolint}, and \textbf{ShellCheck}. Each one of these tools targets a specific part of our codebase: Go code, Dockerfiles, and shell scripts respectively. The pipeline was configured in a dedicated workflow file, where each tool runs in a separate job.
-
-
-For Go code, we used \textbf{golangci-lint} that runs multiple Go linters in parallel in a single configuration. This tool helped us uncover common issues such as unused imports or formatting violations. One notable finding involved detecting repeated logic and varaible declarations, especially in our test files. By refactoring the duplicated code into reusable functions, we improved both clarity and maintainability.
-
-To ensure that our Dockerfiles follow the best practices we used \textbf{Hadolint}. This tools analyzes Dockerfiles for issues such as inefficient layers, missing CMD instructions or unsafe calls. To note is that Hadolint integrated ShellCheck internally, allowing it to lint shell commands embedded within Dockerfile RUN instructions.
+We integrated three static analysis tools into our GitHub Actions CI/CD pipeline: \textbf{golangci-lint}, \textbf{Hadolint}, and \textbf{ShellCheck}. Each one of these tools targets a specific part of our codebase: Go code, Dockerfiles, and shell scripts respectively.
 
 
-While Hadolint covers shell code inside Dockerfiles, we used \textbf{ShellCheck} directly to lint external shell scripts in our repository. Integrating it in our pipeline ensured that all scripts were checked automatically before merging, catching quote issues and other unnecesarry subshells.
+For Go code, we used \textbf{golangci-lint}, which helped us uncover common issues such as unused imports or formatting violations. One notable finding involved detecting repeated logic and variable declarations, especially in our test files.
+
+To ensure that our Dockerfiles follow the best practices we used \textbf{Hadolint}. This tool analyzes Dockerfiles for issues such as inefficient layers, missing CMD instructions or unsafe calls.
+
+
+While Hadolint covers shell code inside Dockerfiles, we used \textbf{ShellCheck} to lint external shell scripts. Integrating it in our pipeline ensured that all scripts were checked automatically before merging, catching quote issues and other unnecessary subshells.
 
 As a security measure, we integrated \textbf{GitGuardian}, a tool specifically designed to scan Git commits, branches, and CI pipelines for exposed secrets such as API keys, passwords, and other sensitive credentials. During testing, GitGuardian successfully identified an exposed a \textit{secret\_key} in one of our commits. Thanks to the immediate feedback from the pipeline, we were able to respond quickly by relocating the credentials to a dedicated \textit{.env} file, reducing the risk of leakage.
 
-Lastly, we used \textbf{SonarQube} to gain insights into code quality metrics such as code duplication, complexity and any potential bugs. Unlike linters that enforce static rules, SonarQube focuses on maintainability and test coverage. One specific recommendation involved complex expressions muliple times in the same function, suggesting simplifying them to improve readability and testability.
+Lastly, we used \textbf{SonarQube} to gain insights into code quality metrics. Unlike linters that enforce static rules, SonarQube focuses on maintainability and test coverage. One specific recommendation involved complex expressions muliple times, suggesting simplifying them to improve readability and testability.
 
 
 
