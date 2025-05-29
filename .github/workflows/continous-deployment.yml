@@ -87,7 +87,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PERSONAL_TOKEN }}
           branch: ${{ env.BRANCH_NAME }}
           base: main
           title: "Auto-update report PDF"
