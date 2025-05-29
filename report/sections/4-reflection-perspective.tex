@@ -15,19 +15,20 @@ Some of the major challenges we faced were upgrading to a deployment strategy an
 
 Initially, our database was stored inside the docker container file system, meaning that any redeployment or container recreation would result in data loss. This setup made it incompatible with strategies like blue/green deployment, where multiple containers might be started and stopped dynamically. Our first Docker Compose setup did not attach a volume to persist data\footnote{\url{https://github.com/Niceness-2-0/itu-minitwit/commit/d97e6233156af6ce7d8cac76d87aef19836021a2}}. To resolve this, we manually copied the SQLite database from the container to a mounted volume, ensuring data persistence across container restarts. The updated Docker Compose file reflects this fix\footnote{\url{https://github.com/Niceness-2-0/itu-minitwit/commit/f00d91373c2a3b79bf03663b2cee3ad58113c219}}.
 \\
-\\
 
 To implement blue/green deployment, we set up NGINX as a reverse proxy, listening on port 5001 and forwarding traffic to the active API container. However, since NGINX can't bind to a port already in use, we wrote a shell script to stop the existing container on port 5001, reload NGINX, and begin redirecting traffic to the new container immediately. This minimized downtime to just the time it took for NGINX to reload, which was effectively near-zero.
 \\
 
 \noindent \textbf{Database Migration}
 \\
+
 As part of system upgrades, we transitioned from SQLite to a managed PostgreSQL database hosted on DigitalOcean. To avoid downtime and data inconsistency, we developed a staged migration process:
 \begin{itemize}
     \item \textbf{Initial Copy:} We copied the SQLite database (~25 MB) from the production server to a secondary VM and used a Python script to insert the data into PostgreSQL. This process took nearly an hour.
     \item \textbf{Second Copy:} During the initial transfer, new data continued to be written to the production SQLite database. To handle this, we used \texttt{sqldiff} to generate a differential SQLite database containing only the changes since the first copy.
     \item \textbf{Final Copy and Switch:} We copied one extra time, applied the remaining data to PostgreSQL, and then used a shell script to reload NGINX to point to the version connected to the new database.
 \end{itemize}
+\\
 
 This approach allowed us to complete the database migration with almost no data loss and near-zero service interruption.
 
@@ -41,7 +42,7 @@ This approach allowed us to complete the database migration with almost no data 
 
 Most of our performance issues can be related to the droplets on digital ocean. All of our VMs were from the cheapest tier, which do not have a lot of computing power. This was most apparent when we needed to start a service that was a bit more resource heavy. For example, when we tried to initialize the ELK stack, ElasticSearch took all the resources and used 100\% of the CPU processes, basically making the VM useless until you restart it. The same happened on our Grafana server, where periodically, the CPU usage would skyrocket to 100\% until we shut down the service. This made up upscale to a bit more expensive tier on the logging server.
 \\
-\\
+
 On our production server, we didn't see much issue, however we did receive around 30.000 Read Time Out Requests which was reported by the simulator. We are not entirely sure what caused this, but we are speculating it could either be a slow database connection, or that the server didn't have enough performance.
 
 %of your ITU-MiniTwit systems. Link back to respective commit messages, issues, tickets, etc. to illustrate these.
