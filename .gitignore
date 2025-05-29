@@ -207,3 +207,6 @@ go.work.sum
 db/latest_processed_sim_action_id.txt
 
 nginx.conf
+
+# Allow the LaTeX PDF output directory
+!report/build/
