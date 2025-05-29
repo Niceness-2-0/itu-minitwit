@@ -17,7 +17,7 @@ A simulation module is also integrated, which emulates realistic user behavior a
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.4\textwidth]{report/images/simple-arch.png}
+  \includegraphics[width=0.4\textwidth]{images/simple-arch.png}
   \caption{High-level architecture of the system}
   \label{fig:simple-architecture}
 \end{figure}
@@ -26,7 +26,7 @@ In our system, we also integrated monitoring tools. While details of which is ex
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.4\textwidth]{report/images/monitoring-arch.png}
+  \includegraphics[width=0.4\textwidth]{images/monitoring-arch.png}
   \caption{Monitoring and Logging Architecture}
   \label{fig:monitoring-arch}
 \end{figure}
@@ -37,7 +37,7 @@ This deployment model ensures both high availability and horizontal scalability,
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.6\textwidth]{report/images/docker-swarm.png}
+  \includegraphics[width=0.6\textwidth]{images/docker-swarm.png}
   \caption{Deployment Diagram}
   \label{fig:docker-swarm}
 \end{figure}
@@ -50,7 +50,7 @@ All external traffic for our domain is first routed through Cloudflare, which ha
 This architecture ensures scalability, service isolation, and a clear separation of concerns.
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.4\textwidth]{report/images/arch-overview.png}
+  \includegraphics[width=0.4\textwidth]{images/arch-overview.png}
   \caption{System Architecture Overview}
   \label{fig:arch-overview}
 \end{figure}
@@ -80,19 +80,21 @@ We used a combination of Prometheus, Grafana, Loki, and Promtail. Prometheus was
 \subsection{Subsystem Interactions}
 %- Sequence diagram for user interaction flow 
 \href{https://drive.google.com/file/d/18J39M3thQ0d2ehqQaVaydPF2SMUSb1fc/view?usp=sharing}{1st}
+The user-flow (as shown in Figure \ref{fig:user-interaction}) and simulator (as shown in Figure \ref{fig:simulator-interaction}) show the interaction when trying to log in. There are other subsystem interactions, but we chose to only focus on the log in part, to not make the diagrams too big.
+
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{report/images/flow.png}
+  \includegraphics[width=\textwidth]{images/flow.png}
   \caption{Sequence diagram for user interaction flow }
-  \label{fig:interaction}
+  \label{fig:user-interaction}
 \end{figure}
-The flow and simulator diagrams only shows part of our System. There are other subsystem interactions, but we chose to stop here to not make the diagram too big. (Disclaimer: parts of the diagrams were created using the draw.io template prompt.)
+
 \href{https://drive.google.com/file/d/1UtkS9Ijj9L4FBIYaqHKRZSK_WOFRrOoa/view?usp=sharing}{2nd}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{report/images/simulator.png}
+  \includegraphics[width=\textwidth]{images/flow.png}
   \caption{Sequence diagram for simulator}
-  \label{fig:interaction}
+  \label{fig:simulator-interaction}
 \end{figure}
 
 
