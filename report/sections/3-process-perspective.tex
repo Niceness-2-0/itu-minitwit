@@ -1,0 +1,101 @@
+\section{Process' perspective}
+\begin{comment}
+{
+
+## 2. Process' perspective
+This perspective should clarify how code or other artifacts come from idea into the running system and everything that happens on the way.
+
+In particular, the following descriptions should be included:
+
+
+
+## 2.1 A complete description of stages and tools included in the CI/CD chains, including deployment and release of your systems.
+
+## 2.2 How do you monitor your systems and what precisely do you monitor?(alexandra :/)
+
+## 2.3 What do you log in your systems and how do you aggregate logs? (oscar is such a stud)
+
+## 2.4 Brief results of the security assessment and brief description of how did you harden the security of your system based on the analysis.
+
+## 2.5 Applied strategy for scaling and upgrades.
+
+In case you have used AI-assistants during your project briefly explain which system(s) you used during the project and reflect how it supported or hindered your process.
+}
+\end{comment}
+
+\subsection{CI/CD pipeline}
+% A complete description of stages and tools included in the CI/CD chains, including deployment and release of your systems.
+Our CI/CD pipeline was built using GitHub Actions and followed a build, test, deployment, and release structure. The pipeline was triggered automatically on every push to the \texttt{main} branch and could also be run manually via the GitHub interface.
+
+In the \textbf{build stage}, Docker images for the API, web frontend, and Promtail are built with Docker Buildx and pushed to Docker Hub, using caching to speed up builds.
+
+During the \textbf{test stage}, we provision a test server over SSH, deploy the latest images, and run API (pytest) and UI (selenium) tests to catch regressions early.
+
+The \textbf{deploy stage} The deploy stage connects to the production server and runs a script that checks for updated images and redeploys the stack using \texttt{docker stack deploy}.
+
+We also added a \textbf{release stage}, where we created a new Git tag and published a release on GitHub, using the version stored in a tracked \texttt{VERSION} file.
+
+\subsection{Monitoring} \label{sec:monitoring}
+% 2.2 How do you monitor your systems and what precisely do you monitor?(alexandra :/)
+
+todo-alexandra: 
+
+
+\subsection{Logging}
+%What do you log in your systems and how do you aggregate logs? (oscar is such a stud)
+To aggregate logs across our infrastructure, we decided to use Promtail and Loki. We set up the Promtail service to run in a  container, where it checks for updates on any logs files inside a volume that our API writes to. This is then sent to our central logging/monitoring server, where Loki ingests the data and stores it. The logs can then be accessed and visualized through Grafana which is hosted on the same server.
+\\
+
+The logs are structured by the help of the Go Library Logrus \footnote{\url{https://github.com/sirupsen/logrus}}, for easy parsing. The API logs: All database errors relating to storing, fetching or updating, and Invalid http requests.
+\\
+
+The reason for using Promtail and Loki for log aggregation was because the ELK stack required too many resources. While trying to deploy the ELK stack to one of our VMs, it slowed down the whole server because it used 100\% of CPU when ElasticSerach was initializing. We then got recommended by another team to use Promtail and Loki, which proved to be great for our infrastructure, as Loki seamlessly integrates into Grafana, which we already used for monitoring.
+
+
+\subsection{Security assessment}
+We conducted a security assessment focusing on key components of our system, including the API, web application, infrastructure, and CI/CD pipeline. After the security assessment we figured out some problems and solved most of them. The following table outlines identified risks and the corresponding mitigation strategies implemented or planned to implement (Red ones shows they are still planned to implement):
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|>{\centering\arraybackslash}p{3.5cm}|>{\centering\arraybackslash}p{6cm}|>{\centering\arraybackslash}p{6cm}|}
+\hline
+\textbf{Asset/Area} & \textbf{Identified Risk} & \textbf{Mitigation Strategy} \\
+\hline
+API Endpoints & SQL Injection via unsanitized inputs & Input validation and parameterized queries \\
+\hline
+\color{red}Login System & \color{red} Brute-force attacks on authentication & \color{red} Rate limiting middleware on login endpoints \\
+\hline
+\color{red} Docker Containers & \color{red} Privilege escalation within containers & \color{red} Containers run as non-root users \\
+\hline
+Secrets Management & Exposure of sensitive credentials & GitHub Secrets and environment variables used \\
+\hline
+SSH Access & Unauthorized server access & SSH key authentication; password login disabled \\
+\hline
+CI/CD Pipeline & Leakage of secrets during deployment & Encrypted GitHub Actions secrets; secure SSH deploy \\
+\hline
+Logging Mechanism & Sensitive data exposure in logs & Log filtering to exclude confidential data \\
+\hline
+External Traffic & Eavesdropping / MITM attacks & TLS termination via Cloudflare; HTTPS enforced through NGINX \\
+\hline
+\end{tabular}
+\caption{Summary of Security Risks and Mitigations}
+\end{table}
+
+
+
+\subsection{Scaling}
+%2.5 Applied strategy for scaling and upgrades.
+In this project, most of our scaling and upgrades happened in our CI/CD pipeline. After the simulator was started, we needed a way to deploy code without having downtime. In the start, we adopted a blue/green deployment strategy, this was made possible by setting up a reverse proxy\footnote{\url{https://nginx.org/}} for the incoming requests. When deploying new code, a new container was spawned with the changes, which we then redirected the requests to. This provided virtually zero-downtime, as it was only Ngnix's configuration that needed to be reloaded\footnote{\url{https://immersedincode.io.vn/blog/zero-downtime-deployment-with-docker-compose-nginx/}}.
+\\
+
+Further along in the project, we adopted a rolling update strategy using Docker Swarm. Our CI/CD pipeline uploaded new Docker images to Docker Hub, and a deployment script on the server checked for image updates. If changes were detected, docker stack deploy was triggered, which allowed Swarm to update services one task at a time. This ensured zero-downtime deployments by gradually replacing containers while keeping the application available.
+\\
+
+Initially, we used Vagrant to manually provision droplets for our Docker Swarm cluster and test servers. Later in the project, we transitioned to Terraform to automate infrastructure setup. We successfully automated droplet creation and connecting the Swarm cluster. While we didn’t fully automate starting the application, it highlighted Terraform’s power and potential in managing IaC.
+
+\subsection{AI assistant} 
+
+The project do not contain any AI assistants in the pipeline. But we have made use of LLMs throughout the project for different tasks. They have been a great resource to help understand, and help with various tasks. Especially in the beginning in the refactor stage, where the team had limited knowledge of Go. The AI assistants were able to explain and produce code that we weren't familiar with in the start.
+\\
+AI assistants are however not the best when it comes to infrastructure. Often it would produce outdated or just wrong information. It was able to produce okay results when you prompted it with a specific task that you provided context to. If you understood the concept, and had some knowledge about the subject, you could use it to produce IaC. 
